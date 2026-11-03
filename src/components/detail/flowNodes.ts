@@ -237,11 +237,18 @@ export function nodeDetail(
             },
           ],
     notice:
-      ran && logged
-        ? { tone: 'warning', text: 'Email is not configured, so this email was not sent.' }
-        : stoppedHere
-          ? { tone: 'error', text: summary || 'The email was not sent.' }
-          : null,
+      ran && execution?.mode === 'test'
+        ? {
+            tone: 'warning',
+            text: 'Test mode. The Helmsman staging database was updated. Monday was not changed. The email was not sent.',
+          }
+        : ran && execution?.mode === 'production'
+          ? { tone: 'warning', text: 'Production mode. The Helmsman production database and Monday were updated.' }
+          : ran && logged
+            ? { tone: 'warning', text: 'Email is not configured, so this email was not sent.' }
+            : stoppedHere
+              ? { tone: 'error', text: summary || 'The email was not sent.' }
+              : null,
   }
 }
 

@@ -26,6 +26,7 @@ export interface Execution {
   durationMs: number | null
   operations: number
   summary?: string
+  mode?: 'test' | 'production'
   errorSummary?: string
   incompleteReason?: string
   analysis?: AiAnalysis
