@@ -71,7 +71,7 @@ export function ScenarioDetailPage() {
 
   function showToast(message: string) {
     setToast(message)
-    window.setTimeout(() => setToast(null), 2800)
+    window.setTimeout(() => setToast(null), 30000)
   }
 
   async function handleToggle() {
@@ -301,8 +301,18 @@ export function ScenarioDetailPage() {
       )}
 
       {toast && (
-        <div className="animate-toast fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-helm-700 px-4 py-2.5 text-sm font-medium text-white shadow-lg">
-          {toast}
+        <div className="animate-toast fixed bottom-4 left-1/2 z-50 w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl bg-helm-700 px-4 py-3 text-sm font-medium leading-relaxed text-white shadow-lg">
+          <div className="flex items-start gap-3">
+            <p className="min-w-0 flex-1">{toast}</p>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="shrink-0 text-white/80 hover:text-white"
+              aria-label="Dismiss result"
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>

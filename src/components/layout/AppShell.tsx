@@ -25,7 +25,9 @@ export function AppShell() {
   function chooseMode(next: RunMode) {
     const previous = mode
     setMode(next)
-    setRuntimeMode(next).catch(() => setMode(previous))
+    setRuntimeMode(next)
+      .then((body) => setMode(body.mode))
+      .catch(() => setMode(previous))
   }
 
   return (
