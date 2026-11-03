@@ -336,7 +336,12 @@ export function inventoryNodeDetail(index: number, execution: Execution | null):
             tableField('Adds', ['Code', 'Item', 'Available', 'Date', 'Product'], inserts),
           ]
         : empty,
-      notice: run?.mode === 'test' ? { tone: 'warning', text: 'Test mode. Monday was not changed.' } : null,
+      notice:
+        run?.mode === 'test'
+          ? { tone: 'warning', text: 'Test mode. The Helmsman staging database was updated. Monday was not changed.' }
+          : run?.mode === 'production'
+            ? { tone: 'warning', text: 'Production mode. The Helmsman production database and Monday were updated.' }
+            : null,
     },
   ]
   return steps[index] ?? { settings: [], input: empty, output: empty, notice: null }
