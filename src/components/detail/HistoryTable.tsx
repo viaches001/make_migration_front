@@ -25,6 +25,13 @@ function isPending(status: string) {
   return status === 'running' || status === 'pending'
 }
 
+function runMode(row: Execution) {
+  if (row.mode === 'test' || row.mode === 'production') return row.mode
+  if (row.inventory?.mode === 'test' || row.inventory?.mode === 'production') return row.inventory.mode
+  if (row.summary?.startsWith('Test mode')) return 'test'
+  return null
+}
+
 export function HistoryTable({ rows, onAnalyze }: Props) {
   if (rows.length === 0) {
     return (
@@ -40,6 +47,7 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
         <thead className="bg-canvas/80 text-[11px] uppercase tracking-wider text-helm-300">
           <tr>
             <th className="px-4 py-3 font-semibold">Status</th>
+            <th className="px-4 py-3 font-semibold">Mode</th>
             <th className="px-4 py-3 font-semibold">Started</th>
             <th className="px-4 py-3 font-semibold">Duration</th>
             <th className="px-4 py-3 font-semibold">Operations</th>
@@ -48,7 +56,9 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const mode = runMode(row)
+            return (
             <tr key={row.id} className="border-t border-helm-50 hover:bg-helm-50/40">
               <td className="px-4 py-3">
                 <span
@@ -60,6 +70,22 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
                 >
                   {statusLabel(row.status)}
                 </span>
+              </td>
+              <td className="px-4 py-3">
+                {mode ? (
+                  <span
+                    className={cn(
+                      'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize',
+                      mode === 'production'
+                        ? 'bg-helm-600 text-white'
+                        : 'bg-helm-50 text-helm-600',
+                    )}
+                  >
+                    {mode}
+                  </span>
+                ) : (
+                  <span className="text-helm-300">—</span>
+                )}
               </td>
               <td className="px-4 py-3 text-helm-600">{formatDateTime(row.startedAt)}</td>
               <td className="px-4 py-3 text-helm-500">
@@ -84,7 +110,8 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
                 </div>
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>
