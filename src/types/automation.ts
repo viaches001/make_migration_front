@@ -55,6 +55,7 @@ export interface InventoryRun {
   productsCreated?: number
   updated?: number
   datesUpdated?: number
+  removed?: number
   inserted?: number
   databaseUpdated?: number
   databaseInserted?: number
