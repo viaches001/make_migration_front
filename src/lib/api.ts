@@ -58,6 +58,13 @@ export function runScenario(id: string, body: unknown = {}) {
   })
 }
 
+export function continueExecution(scenarioId: string, executionId: string) {
+  return request<{ execution: Execution }>(
+    `/api/scenarios/${scenarioId}/executions/${executionId}/continue`,
+    { method: 'POST' },
+  )
+}
+
 export function retryExecution(scenarioId: string, executionId: string) {
   return request<{ execution: Execution }>(
     `/api/scenarios/${scenarioId}/executions/${executionId}/retry`,

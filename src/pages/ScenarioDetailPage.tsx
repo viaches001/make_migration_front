@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
 import {
+  continueExecution,
   fetchHealth,
   fetchHistory,
   fetchIncomplete,
@@ -30,6 +31,7 @@ export function ScenarioDetailPage() {
   const [activeExecution, setActiveExecution] = useState<Execution | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [progressNote, setProgressNote] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const [mailMode, setMailMode] = useState<'log' | 'ses' | null>(null)
   const [pendingRun, setPendingRun] = useState<Execution | null>(null)
@@ -97,24 +99,40 @@ export function ScenarioDetailPage() {
   const inventoryScenario = id === 'sc-inventory-sync-7d'
   const outcomeFor = inventoryScenario ? inventoryFlowOutcome : flowOutcome
 
+  async function followRun(first: { execution: Execution }) {
+    let body = first
+    let guard = 0
+    while (body.execution.status === 'running' && guard < 400) {
+      guard += 1
+      setFlowExecution(body.execution)
+      setFlowProgress({ current: 0 })
+      setProgressNote(body.execution.summary ?? 'Writing Monday.')
+      body = await continueExecution(id, body.execution.id)
+    }
+    const outcome = outcomeFor(body.execution)
+    setFlowExecution(body.execution)
+    setFlowProgress(outcome)
+    setProgressNote(null)
+    await load()
+    showToast(body.execution.summary ?? 'Sample run finished')
+  }
+
   async function handleRunSample() {
     setRunning(true)
     setError(null)
+    setProgressNote(null)
     setTab('flow')
     beginPending()
     setFlowExecution(null)
     setFlowProgress({ current: 0 })
     try {
-      const body = await runScenario(id)
-      const outcome = outcomeFor(body.execution)
-      setFlowExecution(body.execution)
-      setFlowProgress(outcome)
-      await load()
-      showToast(body.execution.summary ?? 'Sample run finished')
+      await followRun(await runScenario(id))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sample run failed')
+      setProgressNote(null)
       setFlowProgress(null)
       setFlowExecution(null)
+      await load().catch(() => undefined)
     } finally {
       setPendingRun(null)
       setRunning(false)
@@ -123,14 +141,13 @@ export function ScenarioDetailPage() {
 
   async function handleRetry(execId: string) {
     beginPending()
+    setError(null)
     try {
-      const body = await retryExecution(id, execId)
-      setFlowExecution(body.execution)
-      setFlowProgress(outcomeFor(body.execution))
-      await load()
-      showToast(body.execution.summary ?? 'Retry finished')
+      await followRun(await retryExecution(id, execId))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Retry failed')
+      setProgressNote(null)
+      await load().catch(() => undefined)
     } finally {
       setPendingRun(null)
     }
@@ -245,6 +262,7 @@ export function ScenarioDetailPage() {
           </div>
         </div>
 
+        {progressNote && <p className="pb-2 text-sm text-helm-500">{progressNote}</p>}
         {error && <p className="pb-2 text-sm text-red-600">{error}</p>}
 
         <DetailTabs

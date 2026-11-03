@@ -253,6 +253,7 @@ export function nodeDetail(
 }
 
 export function inventoryFlowOutcome(execution: Pick<Execution, 'status'>): FlowProgress {
+  if (execution.status === 'running' || execution.status === 'pending') return { current: 0 }
   if (execution.status === 'error' || execution.status === 'incomplete') return { current: 0, stopped: true }
   return { current: 4 }
 }
