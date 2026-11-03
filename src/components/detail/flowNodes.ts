@@ -270,6 +270,33 @@ function tableField(
   }
 }
 
+function inventoryResultNotice(run: Execution['inventory']): FlowNotice | null {
+  if (!run) return null
+  const updated = run.updated ?? run.updates?.length ?? 0
+  const added = run.inserted ?? run.inserts?.length ?? 0
+  const created = run.productsCreated ?? run.created?.length ?? 0
+  const stockUpdated = run.databaseUpdated ?? 0
+  const stockAdded = run.databaseInserted ?? 0
+  const products = created > 0 ? ` Created ${created} products.` : ''
+  if (run.mode === 'test') {
+    return {
+      tone: 'warning',
+      text:
+        `Test mode. Updated ${stockUpdated} stock rows and added ${stockAdded} in the Helmsman staging database. ` +
+        `Monday was not changed. Would update ${updated} inventory rows and add ${added}.${products}`,
+    }
+  }
+  if (run.mode === 'production') {
+    return {
+      tone: 'warning',
+      text:
+        `Production mode. Updated ${updated} inventory rows and added ${added} on Monday. ` +
+        `Updated ${stockUpdated} stock rows and added ${stockAdded} in the Helmsman production database.${products}`,
+    }
+  }
+  return null
+}
+
 export function inventoryNodeDetail(index: number, execution: Execution | null): FlowNodeDetail {
   const run = execution?.inventory
   const ran = Boolean(execution && execution.status !== 'pending' && execution.status !== 'running')
@@ -344,12 +371,7 @@ export function inventoryNodeDetail(index: number, execution: Execution | null):
             tableField('Adds', ['Code', 'Item', 'Available', 'Date', 'Product'], inserts),
           ]
         : empty,
-      notice:
-        run?.mode === 'test'
-          ? { tone: 'warning', text: 'Test mode. The Helmsman staging database was updated. Monday was not changed.' }
-          : run?.mode === 'production'
-            ? { tone: 'warning', text: 'Production mode. The Helmsman production database and Monday were updated.' }
-            : null,
+      notice: inventoryResultNotice(run),
     },
   ]
   return steps[index] ?? { settings: [], input: empty, output: empty, notice: null }

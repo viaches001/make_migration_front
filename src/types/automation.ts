@@ -55,6 +55,8 @@ export interface InventoryRun {
   productsCreated?: number
   updated?: number
   inserted?: number
+  databaseUpdated?: number
+  databaseInserted?: number
   skipped?: string[]
   mode?: string
   files?: Array<{ name: string; modifiedTime?: string }>
