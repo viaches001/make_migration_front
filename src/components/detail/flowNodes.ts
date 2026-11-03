@@ -275,22 +275,24 @@ function inventoryResultNotice(run: Execution['inventory']): FlowNotice | null {
   const updated = run.updated ?? run.updates?.length ?? 0
   const added = run.inserted ?? run.inserts?.length ?? 0
   const created = run.productsCreated ?? run.created?.length ?? 0
+  const dates = run.datesUpdated ?? 0
   const stockUpdated = run.databaseUpdated ?? 0
   const stockAdded = run.databaseInserted ?? 0
   const products = created > 0 ? ` Created ${created} products.` : ''
+  const dateNote = dates > 0 ? ` Set the inventory date on ${dates} rows.` : ''
   if (run.mode === 'test') {
     return {
       tone: 'warning',
       text:
         `Test mode. Updated ${stockUpdated} stock rows and added ${stockAdded} in the Helmsman staging database. ` +
-        `Monday was not changed. Would update ${updated} inventory rows and add ${added}.${products}`,
+        `Monday was not changed. Would update ${updated} quantities and add ${added}.${dateNote}${products}`,
     }
   }
   if (run.mode === 'production') {
     return {
       tone: 'warning',
       text:
-        `Production mode. Updated ${updated} inventory rows and added ${added} on Monday. ` +
+        `Production mode. Updated ${updated} quantities and added ${added} on Monday.${dateNote} ` +
         `Updated ${stockUpdated} stock rows and added ${stockAdded} in the Helmsman production database.${products}`,
     }
   }

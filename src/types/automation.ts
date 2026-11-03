@@ -54,6 +54,7 @@ export interface InventoryRun {
   chosenBy?: string
   productsCreated?: number
   updated?: number
+  datesUpdated?: number
   inserted?: number
   databaseUpdated?: number
   databaseInserted?: number
