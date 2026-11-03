@@ -16,7 +16,13 @@ export function ScenariosPage() {
     let cancelled = false
     fetchScenarios()
       .then((body) => {
-        if (!cancelled) setItems(body.scenarios)
+        if (cancelled) return
+        if (!Array.isArray(body.scenarios)) {
+          setItems([])
+          setError('The API response did not include scenarios.')
+          return
+        }
+        setItems(body.scenarios)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load scenarios')
@@ -29,14 +35,16 @@ export function ScenariosPage() {
     }
   }, [])
 
+  const list = Array.isArray(items) ? items : []
+
   const folders = useMemo(
-    () => [...new Set(items.map((s) => s.folder))].sort(),
-    [items],
+    () => [...new Set(list.map((s) => s.folder))].sort(),
+    [list],
   )
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return items
+    return list
       .filter((s) => {
         if (status !== 'all' && s.status !== status) return false
         if (folder !== 'all' && s.folder !== folder) return false
@@ -48,7 +56,7 @@ export function ScenariosPage() {
         )
       })
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [items, query, status, folder])
+  }, [list, query, status, folder])
 
   async function handleToggle(id: string) {
     const current = items.find((scenario) => scenario.id === id)
@@ -70,7 +78,7 @@ export function ScenariosPage() {
           <span className="font-semibold text-helm-600">{filtered.length}</span> shown
           {' · '}
           <span className="font-semibold text-helm-600">
-            {items.filter((s) => s.status === 'on').length}
+            {list.filter((s) => s.status === 'on').length}
           </span>{' '}
           on
         </div>
@@ -88,7 +96,7 @@ export function ScenariosPage() {
 
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}. Start the app with <span className="font-mono">python dev.py</span> from make_migration.
+          {error}
         </div>
       )}
 

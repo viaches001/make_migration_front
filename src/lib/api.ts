@@ -10,10 +10,20 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   })
-  const body = await response.json().catch(() => ({}))
+  const body = await response.json().catch(() => null)
   if (!response.ok) {
-    const message = typeof body.error === 'string' ? body.error : `Request failed (${response.status})`
+    const message =
+      body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
+        ? (body as { error: string }).error
+        : `Request failed (${response.status})`
     throw new Error(message)
+  }
+  if (!body || typeof body !== 'object') {
+    throw new Error(
+      apiBase
+        ? 'The API did not return JSON.'
+        : 'This site has no API URL. Set VITE_API_URL on Vercel to the Python API and redeploy.',
+    )
   }
   return body as T
 }
