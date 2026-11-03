@@ -13,16 +13,12 @@ import {
 } from '@/lib/api'
 import type { Execution, Scenario, ScenarioStatus } from '@/types/automation'
 import { DetailTabs, type DetailTab } from '@/components/detail/DetailTabs'
-import { FLOW_STEP_COUNT, FlowView, INVENTORY_FLOW_STEP_COUNT } from '@/components/detail/FlowView'
+import { FlowView } from '@/components/detail/FlowView'
 import { flowOutcome, inventoryFlowOutcome } from '@/components/detail/flowNodes'
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
 import { cn, formatDateTime } from '@/lib/format'
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
 
 export function ScenarioDetailPage() {
   const { id = '' } = useParams()
@@ -99,7 +95,6 @@ export function ScenarioDetailPage() {
   }
 
   const inventoryScenario = id === 'sc-inventory-sync-7d'
-  const stepCount = inventoryScenario ? INVENTORY_FLOW_STEP_COUNT : FLOW_STEP_COUNT
   const outcomeFor = inventoryScenario ? inventoryFlowOutcome : flowOutcome
 
   async function handleRunSample() {
@@ -107,42 +102,19 @@ export function ScenarioDetailPage() {
     setError(null)
     setTab('flow')
     beginPending()
+    setFlowExecution(null)
     setFlowProgress({ current: 0 })
-    const runState: { result: { execution: Execution } | null; failure: unknown } = {
-      result: null,
-      failure: null,
-    }
-    const runPromise = runScenario(id).then(
-      (body) => {
-        runState.result = body
-        setFlowExecution(body.execution)
-        return body
-      },
-      (err: unknown) => {
-        runState.failure = err
-        throw err
-      },
-    )
-
     try {
-      for (let step = 0; step < stepCount; step += 1) {
-        if (runState.failure) break
-        if (runState.result) {
-          const outcome = outcomeFor(runState.result.execution)
-          if (outcome.stopped && step > outcome.current) break
-        }
-        setFlowProgress({ current: step })
-        await sleep(420)
-      }
-      const body = runState.result ?? (await runPromise)
+      const body = await runScenario(id)
       const outcome = outcomeFor(body.execution)
-      setFlowProgress(outcome)
       setFlowExecution(body.execution)
+      setFlowProgress(outcome)
       await load()
       showToast(body.execution.summary ?? 'Sample run finished')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sample run failed')
       setFlowProgress(null)
+      setFlowExecution(null)
     } finally {
       setPendingRun(null)
       setRunning(false)
@@ -154,6 +126,7 @@ export function ScenarioDetailPage() {
     try {
       const body = await retryExecution(id, execId)
       setFlowExecution(body.execution)
+      setFlowProgress(outcomeFor(body.execution))
       await load()
       showToast(body.execution.summary ?? 'Retry finished')
     } catch (err: unknown) {
@@ -187,6 +160,7 @@ export function ScenarioDetailPage() {
   }
 
   const status = scenario.status
+  const shownExecution = flowExecution ?? history.find((row) => row.status !== 'pending') ?? null
   const historyRows = pendingRun
     ? [pendingRun, ...history.filter((row) => row.status !== 'running')]
     : history
@@ -288,8 +262,14 @@ export function ScenarioDetailPage() {
         {tab === 'flow' && (
           <FlowView
             variant={inventoryScenario ? 'inventory' : 'brand'}
-            progress={flowProgress}
-            execution={flowExecution ?? history.find((row) => row.status !== 'pending') ?? null}
+            progress={
+              running || flowProgress
+                ? flowProgress
+                : shownExecution
+                  ? outcomeFor(shownExecution)
+                  : null
+            }
+            execution={running ? flowExecution : shownExecution}
             mailMode={mailMode}
             boardName={scenario.boardName}
             boardId={scenario.boardId}

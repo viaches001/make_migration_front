@@ -86,8 +86,11 @@ const inventorySteps: Step[] = [
 
 export const INVENTORY_FLOW_STEP_COUNT = inventorySteps.length
 
-function stepState(index: number, progress: FlowProgress | null) {
+function stepState(index: number, progress: FlowProgress | null, hasResult: boolean) {
   if (!progress) return 'idle' as const
+  if (!hasResult) {
+    return index === progress.current ? ('active' as const) : ('idle' as const)
+  }
   if (progress.stopped && index === progress.current) return 'stopped' as const
   if (progress.stopped && index > progress.current) return 'idle' as const
   if (index < progress.current) return 'done' as const
@@ -117,12 +120,18 @@ export function FlowView({
   onSelect,
 }: Props) {
   const activeSteps = variant === 'inventory' ? inventorySteps : steps
+  const hasResult = Boolean(
+    execution && execution.status !== 'pending' && execution.status !== 'running',
+  )
   const detail =
     selected == null
       ? null
-      : variant === 'inventory'
-        ? inventoryNodeDetail(selected, execution ?? null)
-        : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
+      : hideUnrun(
+          variant === 'inventory'
+            ? inventoryNodeDetail(selected, execution ?? null)
+            : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
+          stepState(selected, progress, hasResult),
+        )
   const selectedTitle = selected == null ? '' : activeSteps[selected]?.title
 
   return (
@@ -144,7 +153,7 @@ export function FlowView({
       </p>
       <div className="relative flex min-w-max items-start px-5 pb-8 pt-4">
         {activeSteps.map((step, index) => {
-          const state = stepState(index, progress)
+          const state = stepState(index, progress, hasResult)
           return (
             <div key={step.title} className="flex items-start">
               <div className={cn('flex w-56 flex-col items-center', state === 'idle' && progress && 'opacity-45')}>
@@ -210,6 +219,15 @@ export function FlowView({
     <NodeInspector title={selectedTitle} detail={detail} onClose={() => onSelect(null)} />
     </div>
   )
+}
+
+function hideUnrun(
+  detail: ReturnType<typeof nodeDetail>,
+  state: ReturnType<typeof stepState>,
+) {
+  if (state === 'done' || state === 'stopped') return detail
+  const waiting = [{ label: 'Value', value: 'This step has not finished yet.' }]
+  return { ...detail, input: waiting, output: waiting, notice: null }
 }
 
 type InspectorTab = 'input' | 'output' | 'settings' | 'notice'
