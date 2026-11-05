@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Check, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { Execution } from '@/types/automation'
 import { cn } from '@/lib/format'
-import { inventoryNodeDetail, nodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
+import { inventoryNodeDetail, nodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
 
@@ -86,6 +86,33 @@ const inventorySteps: Step[] = [
 
 export const INVENTORY_FLOW_STEP_COUNT = inventorySteps.length
 
+const warehouseSteps: Step[] = [
+  {
+    icon: Filter,
+    kicker: 'Google Sheets',
+    title: 'Warehouse list',
+    detail: 'Open the warehouse row and use the inventory spreadsheet and date on that row.',
+  },
+  {
+    icon: FileDown,
+    kicker: 'Google Sheets',
+    title: 'Quantities',
+    detail: 'Sum Available, Allocated, and In Bond by Scribebase ID.',
+  },
+  {
+    icon: Square,
+    kicker: 'Monday',
+    title: 'Inventory board',
+    detail: 'Update rows whose quantities or Last Input differ. Leave every other row as it is.',
+  },
+  {
+    icon: Check,
+    kicker: 'Helmsman',
+    title: 'Stock',
+    detail: 'Write Tax Paid, Allocated, and Held In Bond for this warehouse.',
+  },
+]
+
 function stepState(index: number, progress: FlowProgress | null, hasResult: boolean) {
   if (!progress) return 'idle' as const
   if (!hasResult) {
@@ -99,7 +126,7 @@ function stepState(index: number, progress: FlowProgress | null, hasResult: bool
 }
 
 interface Props {
-  variant?: 'brand' | 'inventory'
+  variant?: 'brand' | 'inventory' | 'warehouse'
   progress?: FlowProgress | null
   execution?: Execution | null
   mailMode?: 'log' | 'ses' | null
@@ -119,7 +146,7 @@ export function FlowView({
   selected,
   onSelect,
 }: Props) {
-  const activeSteps = variant === 'inventory' ? inventorySteps : steps
+  const activeSteps = variant === 'inventory' ? inventorySteps : variant === 'warehouse' ? warehouseSteps : steps
   const hasResult = Boolean(
     execution && execution.status !== 'pending' && execution.status !== 'running',
   )
@@ -129,7 +156,9 @@ export function FlowView({
       : hideUnrun(
           variant === 'inventory'
             ? inventoryNodeDetail(selected, execution ?? null)
-            : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
+            : variant === 'warehouse'
+              ? warehouseNodeDetail(selected, execution ?? null)
+              : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
           stepState(selected, progress, hasResult),
         )
   const selectedTitle = selected == null ? '' : activeSteps[selected]?.title
@@ -137,7 +166,13 @@ export function FlowView({
   return (
     <div className="flex min-h-[440px] flex-col gap-3 xl:flex-row">
     <section
-      aria-label={variant === 'inventory' ? 'Inventory sync flow, view only' : 'Brand Approval flow, view only'}
+      aria-label={
+        variant === 'inventory'
+          ? 'Inventory sync flow, view only'
+          : variant === 'warehouse'
+            ? 'Warehouse inventory sync flow, view only'
+            : 'Brand Approval flow, view only'
+      }
       className="relative min-h-[440px] min-w-0 flex-1 overflow-auto rounded-2xl border border-helm-100 bg-white"
     >
       <div

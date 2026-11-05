@@ -100,9 +100,20 @@ export function ScenarioDetailPage() {
   }
 
   const inventoryScenario = id === 'sc-inventory-sync-7d'
+  const warehouseScenario =
+    id === 'sc-inventory-sync-fdl' || id === 'sc-inventory-sync-hanover' || id === 'sc-inventory-sync-nl'
+  const webhookPath = inventoryScenario
+    ? '/api/webhooks/inventory-sync-7d'
+    : id === 'sc-inventory-sync-fdl'
+      ? '/api/webhooks/inventory-sync-fdl'
+      : id === 'sc-inventory-sync-hanover'
+        ? '/api/webhooks/inventory-sync-hanover'
+        : id === 'sc-inventory-sync-nl'
+          ? '/api/webhooks/inventory-sync-network-logistics'
+          : '/api/webhooks/monday/brand-approval'
   const showCompare = inventoryScenario && mode === 'production'
   const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
-  const outcomeFor = inventoryScenario ? inventoryFlowOutcome : flowOutcome
+  const outcomeFor = inventoryScenario || warehouseScenario ? inventoryFlowOutcome : flowOutcome
 
   async function followRun(first: { execution: Execution }) {
     let body = first
@@ -222,7 +233,7 @@ export function ScenarioDetailPage() {
                   {scenario.description}
                 </p>
                 <p className="mt-1 font-mono text-[11px] text-helm-300">
-                  POST /api/webhooks/monday/brand-approval
+                  POST {webhookPath}
                 </p>
               </>
             )}
@@ -285,7 +296,7 @@ export function ScenarioDetailPage() {
 
         {activeTab === 'flow' && (
           <FlowView
-            variant={inventoryScenario ? 'inventory' : 'brand'}
+            variant={inventoryScenario ? 'inventory' : warehouseScenario ? 'warehouse' : 'brand'}
             progress={
               running || flowProgress
                 ? flowProgress

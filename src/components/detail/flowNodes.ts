@@ -381,4 +381,83 @@ export function inventoryNodeDetail(index: number, execution: Execution | null):
   return steps[index] ?? { settings: [], input: empty, output: empty, notice: null }
 }
 
+export function warehouseNodeDetail(index: number, execution: Execution | null): FlowNodeDetail {
+  const run = execution?.inventory
+  const ran = Boolean(execution && execution.status !== 'pending' && execution.status !== 'running')
+  const failed = execution?.status === 'error' || execution?.status === 'incomplete'
+  const empty = [{ label: 'Value', value: ran ? execution?.summary || '—' : EMPTY }]
+  const stock = (run?.stock ?? []).map((row) => [
+    row.code,
+    String(row.available),
+    String(row.allocated ?? 0),
+    String(row.inBond ?? 0),
+  ])
+  const updates = (run?.updates ?? []).map((row) => [
+    row.code || '',
+    String(row.available),
+    String(row.allocated ?? 0),
+    String(row.inBond ?? 0),
+    row.date,
+    row.item_id,
+  ])
+  const hasRows = Boolean(run && (run.stock || run.updates))
+  const steps: FlowNodeDetail[] = [
+    {
+      settings: [
+        { label: 'Spreadsheet', value: 'Warehouse Inventory List' },
+        { label: 'Row', value: execution?.order?.name || 'The warehouse name in column A' },
+        { label: 'Date', value: 'Column D, written to Last Input' },
+      ],
+      input: empty,
+      output: hasRows
+        ? [
+            { label: 'Warehouse', value: run?.fileName || execution?.order?.name || '—' },
+            { label: 'Inventory date', value: run?.chosenBy || '—' },
+            { label: 'Spreadsheet', value: run?.spreadsheetIds?.[0] || execution?.order?.spreadsheetId || '—' },
+          ]
+        : [{ label: 'Spreadsheet', value: run?.spreadsheetIds?.[0] || EMPTY }],
+      notice: failed ? { tone: execution?.status === 'error' ? 'error' : 'warning', text: execution?.summary || 'The run stopped.' } : null,
+    },
+    {
+      settings: [
+        { label: 'FDL', value: 'Available, Allocated, and In Bond are summed by column position.' },
+        { label: 'Hanover', value: 'Cases plus bottles divided by items per case. In Bond uses the existing Hanover formula.' },
+        { label: 'Network Logistics', value: 'Available Primary is summed. Allocated and In Bond stay 0.' },
+      ],
+      input: hasRows ? [tableField('Sheet quantities', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
+      output: hasRows ? [tableField('Quantity used', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
+      notice: null,
+    },
+    {
+      settings: [
+        { label: 'Available', value: 'numeric94' },
+        { label: 'Allocated', value: 'numeric0' },
+        { label: 'In Bond', value: 'numeric3' },
+        { label: 'Last Input', value: 'date4' },
+      ],
+      input: hasRows ? [tableField('Sheet quantities', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
+      output: hasRows
+        ? [tableField('Monday changes', ['Code', 'Available', 'Allocated', 'In Bond', 'Date', 'Monday item'], updates)]
+        : empty,
+      notice: inventoryResultNotice(run),
+    },
+    {
+      settings: [
+        { label: 'Tax Paid', value: 'Available' },
+        { label: 'Allocated', value: 'Allocated' },
+        { label: 'Held In Bond', value: 'In Bond' },
+      ],
+      input: hasRows ? [tableField('Stock levels', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
+      output: hasRows
+        ? [
+            { label: 'Stock rows updated', value: String(run?.databaseUpdated ?? 0) },
+            { label: 'Stock rows added', value: String(run?.databaseInserted ?? 0) },
+          ]
+        : empty,
+      notice: inventoryResultNotice(run),
+    },
+  ]
+  return steps[index] ?? { settings: [], input: empty, output: empty, notice: null }
+}
+
 

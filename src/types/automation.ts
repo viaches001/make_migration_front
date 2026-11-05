@@ -64,8 +64,23 @@ export interface InventoryRun {
   files?: Array<{ name: string; modifiedTime?: string }>
   catalog?: Array<{ code: string; name: string; pieces: number }>
   created?: Array<{ code: string; name: string; pieces: number }>
-  stock?: Array<{ code: string; name: string; available: number; pieces?: string | number }>
-  updates?: Array<{ item_id: string; code?: string; name?: string; available: number; date: string }>
+  stock?: Array<{
+    code: string
+    name: string
+    available: number
+    pieces?: string | number
+    allocated?: number
+    inBond?: number
+  }>
+  updates?: Array<{
+    item_id: string
+    code?: string
+    name?: string
+    available: number
+    allocated?: number
+    inBond?: number
+    date: string
+  }>
   inserts?: Array<{ code: string; name: string; available: number; product_id?: string; date: string }>
 }
 
