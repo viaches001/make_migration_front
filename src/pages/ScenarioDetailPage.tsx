@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
 import {
   continueExecution,
@@ -11,8 +11,10 @@ import {
   retryExecution,
   runScenario,
   setScenarioStatus,
+  type RunMode,
 } from '@/lib/api'
 import type { Execution, Scenario, ScenarioStatus } from '@/types/automation'
+import { CompareView } from '@/components/detail/CompareView'
 import { DetailTabs, type DetailTab } from '@/components/detail/DetailTabs'
 import { FlowView } from '@/components/detail/FlowView'
 import { flowOutcome, inventoryFlowOutcome } from '@/components/detail/flowNodes'
@@ -23,6 +25,7 @@ import { cn, formatDateTime } from '@/lib/format'
 
 export function ScenarioDetailPage() {
   const { id = '' } = useParams()
+  const { mode } = useOutletContext<{ mode: RunMode }>()
   const [scenario, setScenario] = useState<Scenario | null>(null)
   const [missing, setMissing] = useState(false)
   const [tab, setTab] = useState<DetailTab>('history')
@@ -97,6 +100,8 @@ export function ScenarioDetailPage() {
   }
 
   const inventoryScenario = id === 'sc-inventory-sync-7d'
+  const showCompare = inventoryScenario && mode === 'production'
+  const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
   const outcomeFor = inventoryScenario ? inventoryFlowOutcome : flowOutcome
 
   async function followRun(first: { execution: Execution }) {
@@ -266,18 +271,19 @@ export function ScenarioDetailPage() {
         {error && <p className="pb-2 text-sm text-red-600">{error}</p>}
 
         <DetailTabs
-          active={tab}
+          active={activeTab}
           incompleteCount={incomplete.length}
+          showCompare={showCompare}
           onChange={setTab}
         />
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-auto px-4 py-4 sm:px-6">
-        {tab === 'history' && (
+        {activeTab === 'history' && (
           <HistoryTable rows={historyRows} onAnalyze={setActiveExecution} />
         )}
 
-        {tab === 'flow' && (
+        {activeTab === 'flow' && (
           <FlowView
             variant={inventoryScenario ? 'inventory' : 'brand'}
             progress={
@@ -296,7 +302,7 @@ export function ScenarioDetailPage() {
           />
         )}
 
-        {tab === 'incomplete' && (
+        {activeTab === 'incomplete' && (
           <IncompleteTable
             rows={incomplete}
             onAnalyze={setActiveExecution}
@@ -308,6 +314,8 @@ export function ScenarioDetailPage() {
             }}
           />
         )}
+
+        {activeTab === 'compare' && <CompareView />}
       </div>
 
       {activeExecution && (

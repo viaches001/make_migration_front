@@ -1,0 +1,216 @@
+import { useEffect, useState } from 'react'
+import { fetchInventoryCompare, type CompareRow, type InventoryCompare } from '@/lib/api'
+import { cn } from '@/lib/format'
+
+type CompareSection = 'duplicates' | 'compare'
+
+function fileDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return value
+  return `${match[2]}/${match[3]}/${match[1]}`
+}
+
+function SourceLine({ report }: { report: InventoryCompare }) {
+  const { source } = report
+  return (
+    <div className="rounded-2xl border border-helm-100 bg-white px-4 py-3 text-sm text-helm-600">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-helm-300">
+          7D inventory spreadsheet
+        </span>
+        <a
+          href={source.url}
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-helm-600 underline decoration-helm-200 underline-offset-2 hover:text-helm-500"
+        >
+          {source.name || 'Open spreadsheet'}
+        </a>
+        {source.date && <span className="text-helm-400">Data date {fileDate(source.date)}</span>}
+      </div>
+    </div>
+  )
+}
+
+function SectionTabs({
+  active,
+  onChange,
+}: {
+  active: CompareSection
+  onChange: (section: CompareSection) => void
+}) {
+  const sections: Array<{ id: CompareSection; label: string }> = [
+    { id: 'duplicates', label: 'Duplicated rows' },
+    { id: 'compare', label: 'Compare' },
+  ]
+  return (
+    <div className="flex gap-1">
+      {sections.map((section) => (
+        <button
+          key={section.id}
+          type="button"
+          onClick={() => onChange(section.id)}
+          className={cn(
+            'rounded-full px-3 py-1.5 text-sm font-semibold transition',
+            active === section.id
+              ? 'bg-helm-600 text-white'
+              : 'bg-white text-helm-400 hover:text-helm-600',
+          )}
+        >
+          {section.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function DataTable({
+  title,
+  rows,
+  columns,
+  empty,
+}: {
+  title: string
+  rows: CompareRow[]
+  columns: Array<{ key: keyof CompareRow | 'item'; label: string }>
+  empty: string
+}) {
+  return (
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-helm-100 bg-white">
+      <div className="flex items-center justify-between border-b border-helm-100 px-4 py-3">
+        <h2 className="text-sm font-semibold text-helm-700">{title}</h2>
+        <span className="text-xs text-helm-300">{rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="px-4 py-10 text-center text-sm text-helm-400">{empty}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-canvas/80 text-[11px] uppercase tracking-wider text-helm-300">
+              <tr>
+                {columns.map((column) => (
+                  <th key={column.label} className="px-4 py-3 font-semibold">
+                    {column.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={`${row.itemId || row.code}-${row.tab || ''}-${index}`} className="border-t border-helm-100">
+                  {columns.map((column) => (
+                    <td key={column.label} className="px-4 py-2.5 text-helm-600">
+                      {column.key === 'item' && row.url ? (
+                        <a href={row.url} target="_blank" rel="noreferrer" className="font-medium hover:text-helm-500">
+                          {row.name || row.itemId}
+                        </a>
+                      ) : (
+                        String(row[column.key as keyof CompareRow] ?? '')
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
+export function CompareView() {
+  const [section, setSection] = useState<CompareSection>('duplicates')
+  const [report, setReport] = useState<InventoryCompare | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetchInventoryCompare()
+      .then((body) => {
+        if (!cancelled) {
+          setReport(body)
+          setError(null)
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load the comparison')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loading) {
+    return <p className="text-sm text-helm-400">Reading Monday and the 7D inventory spreadsheet.</p>
+  }
+  if (error || !report) {
+    return <p className="text-sm text-red-600">{error || 'Could not load the comparison'}</p>
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SourceLine report={report} />
+      <SectionTabs active={section} onChange={setSection} />
+      {section === 'duplicates' ? (
+        <div className="flex flex-col gap-4">
+          <DataTable
+            title="Monday board duplicates"
+            rows={report.mondayDuplicates}
+            empty="No duplicate Scribebase IDs on the Monday board."
+            columns={[
+              { key: 'code', label: 'Scribebase ID' },
+              { key: 'item', label: 'Item' },
+              { key: 'available', label: 'Available' },
+              { key: 'date', label: 'Last Input' },
+              { key: 'copies', label: 'Copies' },
+            ]}
+          />
+          <DataTable
+            title="Spreadsheet duplicates"
+            rows={report.sheetDuplicates}
+            empty="No duplicate codes on the 7D inventory spreadsheet."
+            columns={[
+              { key: 'code', label: 'Code' },
+              { key: 'name', label: 'Item' },
+              { key: 'available', label: 'Available' },
+              { key: 'tab', label: 'Tab' },
+              { key: 'copies', label: 'Copies' },
+            ]}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+          <DataTable
+            title="Monday rows that differ"
+            rows={report.mondayDifferences}
+            empty="Every Monday Scribebase ID matches the spreadsheet quantity."
+            columns={[
+              { key: 'code', label: 'Scribebase ID' },
+              { key: 'item', label: 'Item' },
+              { key: 'available', label: 'Available' },
+              { key: 'date', label: 'Last Input' },
+              { key: 'status', label: 'Difference' },
+            ]}
+          />
+          <DataTable
+            title="Spreadsheet rows that differ"
+            rows={report.sheetDifferences}
+            empty="Every spreadsheet code matches a Monday quantity."
+            columns={[
+              { key: 'code', label: 'Code' },
+              { key: 'name', label: 'Item' },
+              { key: 'available', label: 'Available' },
+              { key: 'status', label: 'Difference' },
+            ]}
+          />
+        </div>
+      )}
+    </div>
+  )
+}

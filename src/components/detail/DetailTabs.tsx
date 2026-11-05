@@ -1,10 +1,11 @@
 import { cn } from '@/lib/format'
 
-export type DetailTab = 'history' | 'flow' | 'incomplete'
+export type DetailTab = 'history' | 'flow' | 'incomplete' | 'compare'
 
 interface Props {
   active: DetailTab
   incompleteCount: number
+  showCompare?: boolean
   onChange: (tab: DetailTab) => void
 }
 
@@ -12,12 +13,14 @@ const tabs: Array<{ id: DetailTab; label: string }> = [
   { id: 'history', label: 'History' },
   { id: 'flow', label: 'Flow' },
   { id: 'incomplete', label: 'Incomplete executions' },
+  { id: 'compare', label: 'Compare' },
 ]
 
-export function DetailTabs({ active, incompleteCount, onChange }: Props) {
+export function DetailTabs({ active, incompleteCount, showCompare = false, onChange }: Props) {
+  const visible = tabs.filter((tab) => tab.id !== 'compare' || showCompare)
   return (
     <div className="flex gap-1 border-b border-helm-100">
-      {tabs.map((tab) => (
+      {visible.map((tab) => (
         <button
           key={tab.id}
           type="button"

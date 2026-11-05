@@ -51,6 +51,37 @@ export function fetchIncomplete(id: string) {
   return request<{ executions: Execution[] }>(`/api/scenarios/${id}/incomplete`)
 }
 
+export interface CompareSource {
+  spreadsheetId: string
+  name: string
+  date: string
+  url: string
+}
+
+export interface CompareRow {
+  code: string
+  name: string
+  available: string
+  date?: string
+  itemId?: string
+  tab?: string
+  copies?: number
+  status?: string
+  url?: string
+}
+
+export interface InventoryCompare {
+  source: CompareSource
+  mondayDuplicates: CompareRow[]
+  sheetDuplicates: CompareRow[]
+  mondayDifferences: CompareRow[]
+  sheetDifferences: CompareRow[]
+}
+
+export function fetchInventoryCompare() {
+  return request<InventoryCompare>('/api/inventory/compare')
+}
+
 export function runScenario(id: string, body: unknown = {}) {
   return request<{ execution: Execution }>(`/api/scenarios/${id}/run`, {
     method: 'POST',
