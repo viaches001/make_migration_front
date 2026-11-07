@@ -96,11 +96,11 @@ function DataTable({
         <p className="px-4 py-10 text-center text-sm text-helm-400">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-canvas/80 text-[11px] uppercase tracking-wider text-helm-300">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-canvas/80 text-[10px] uppercase tracking-wider text-helm-300">
               <tr>
                 {columns.map((column) => (
-                  <th key={column.label} className="px-4 py-3 font-semibold">
+                  <th key={column.label} className="px-3 py-2 font-semibold">
                     {column.label}
                   </th>
                 ))}
@@ -110,7 +110,7 @@ function DataTable({
               {rows.map((row, index) => (
                 <tr key={`${row.itemId || row.code}-${row.tab || ''}-${index}`} className="border-t border-helm-100">
                   {columns.map((column) => (
-                    <td key={column.label} className="px-4 py-2.5 text-helm-600">
+                    <td key={column.label} className="px-3 py-1.5 text-helm-600">
                       {column.key === 'item' && row.url ? (
                         <a href={row.url} target="_blank" rel="noreferrer" className="font-medium hover:text-helm-500">
                           {row.name || row.itemId}
