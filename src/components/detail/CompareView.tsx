@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { fetchInventoryCompare, type CompareRow, type InventoryCompare } from '@/lib/api'
-import { cn, friendlyText } from '@/lib/format'
+import { cn, formatDateTime, friendlyText } from '@/lib/format'
 
 type CompareSection = 'duplicates' | 'compare'
 
@@ -27,7 +28,17 @@ function SourceLine({ report }: { report: InventoryCompare }) {
           {source.name || 'Open spreadsheet'}
         </a>
         {source.date && <span className="text-helm-400">{fileDate(source.date)}</span>}
+        {report.savedAt && <span className="text-helm-400">Checked {formatDateTime(report.savedAt)}</span>}
       </div>
+    </div>
+  )
+}
+
+function Reloading({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-helm-100 bg-white px-4 py-3 text-sm font-semibold text-helm-600" role="status">
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-helm-500" />
+      {label}
     </div>
   )
 }
@@ -134,38 +145,39 @@ export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioI
   const [section, setSection] = useState<CompareSection>('duplicates')
   const [report, setReport] = useState<InventoryCompare | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [reloading, setReloading] = useState(true)
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
+    setReloading(true)
     setReport(null)
     setError(null)
     fetchInventoryCompare(scenarioId)
       .then((body) => {
-        if (!cancelled) {
-          setReport(body)
-          setError(null)
-        }
+        if (cancelled) return null
+        setReport(body)
+        setError(null)
+        if (!body.stale) return null
+        return fetchInventoryCompare(scenarioId, true)
+      })
+      .then((fresh) => {
+        if (cancelled || !fresh) return
+        setReport(fresh)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load the comparison')
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setReloading(false)
       })
     return () => {
       cancelled = true
     }
   }, [scenarioId])
 
-  if (loading) {
-    return (
-      <p className="text-sm text-helm-400">
-        Checking the latest inventory file.
-      </p>
-    )
+  if (reloading && !report) {
+    return <Reloading label="Loading the comparison." />
   }
-  if (error || !report) {
+  if (!report) {
     return <p className="text-sm text-red-600">{friendlyText(error || 'The comparison could not be loaded.')}</p>
   }
 
@@ -173,6 +185,7 @@ export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioI
 
   return (
     <div className="flex flex-col gap-4">
+      {reloading && <Reloading label="Reloading the comparison." />}
       <SourceLine report={report} />
       <SectionTabs active={section} onChange={setSection} />
       {section === 'duplicates' ? (

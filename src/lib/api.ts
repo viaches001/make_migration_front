@@ -80,14 +80,16 @@ export interface InventoryCompare {
   sheetDuplicates: CompareRow[]
   mondayDifferences: CompareRow[]
   sheetDifferences: CompareRow[]
+  savedAt?: string
+  stale?: boolean
 }
 
-export function fetchInventoryCompare(scenarioId?: string) {
-  const query =
-    scenarioId && scenarioId !== 'sc-inventory-sync-7d'
-      ? `?scenario=${encodeURIComponent(scenarioId)}`
-      : ''
-  return request<InventoryCompare>(`/api/inventory/compare${query}`)
+export function fetchInventoryCompare(scenarioId?: string, refresh = false) {
+  const params = new URLSearchParams()
+  if (scenarioId && scenarioId !== 'sc-inventory-sync-7d') params.set('scenario', scenarioId)
+  if (refresh) params.set('refresh', '1')
+  const query = params.toString()
+  return request<InventoryCompare>(`/api/inventory/compare${query ? `?${query}` : ''}`)
 }
 
 export function runScenario(id: string, body: unknown = {}) {
