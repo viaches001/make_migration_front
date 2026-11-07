@@ -404,9 +404,9 @@ export function warehouseNodeDetail(index: number, execution: Execution | null):
   const steps: FlowNodeDetail[] = [
     {
       settings: [
-        { label: 'Spreadsheet', value: 'Warehouse Inventory List' },
-        { label: 'Row', value: execution?.order?.name || 'The warehouse name in column A' },
-        { label: 'Date', value: 'Column D, written to Last Input' },
+        { label: 'Folder', value: 'Warehouses folder' },
+        { label: 'File', value: execution?.order?.name || 'The newest file for this warehouse' },
+        { label: 'Date', value: 'The date in the file name, written to Last Input' },
       ],
       input: empty,
       output: hasRows

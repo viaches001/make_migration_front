@@ -90,8 +90,8 @@ const warehouseSteps: Step[] = [
   {
     icon: Filter,
     kicker: 'Google Sheets',
-    title: 'Warehouse list',
-    detail: 'Open the warehouse row and use the inventory spreadsheet and date on that row.',
+    title: 'Warehouses folder',
+    detail: 'Open the newest inventory file for this warehouse in the warehouses folder.',
   },
   {
     icon: FileDown,
