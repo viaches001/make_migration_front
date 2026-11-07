@@ -1,3 +1,4 @@
+import { friendlyText } from '@/lib/format'
 import type { Execution, OrderSnapshot } from '@/types/automation'
 
 export interface FlowProgress {
@@ -26,7 +27,7 @@ export interface FlowNodeDetail {
   notice: FlowNotice | null
 }
 
-const EMPTY = 'Run the scenario to see this value.'
+const EMPTY = 'Run this to see the result.'
 const NOT_RUN = 'This step did not run.'
 
 export function flowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
@@ -96,10 +97,7 @@ export function nodeDetail(
       output: !execution
         ? [{ label: 'Value', value: EMPTY }]
         : ran
-          ? [
-              { label: 'Pulse ID', value: order?.pulseId || '—' },
-              { label: 'Board ID', value: boardId },
-            ]
+          ? [{ label: 'Order', value: order?.name || 'An order changed' }]
           : [{ label: 'Value', value: NOT_RUN }],
       notice: null,
     }
@@ -129,7 +127,7 @@ export function nodeDetail(
                 { label: 'Client Order email', value: order?.orderEmail || '—' },
                 { label: 'PO File', value: fileNames(order) },
               ],
-      notice: stoppedHere ? { tone: 'error', text: summary || 'The Monday item could not be loaded.' } : null,
+      notice: stoppedHere ? { tone: 'error', text: summary || 'The order could not be opened.' } : null,
     }
   }
 
@@ -173,7 +171,7 @@ export function nodeDetail(
             : [{ label: 'Attachment', value: 'No file' }],
       notice:
         stoppedHere || (ran && files.length === 0)
-          ? { tone: 'warning', text: summary || 'PO File column has no file.' }
+          ? { tone: 'warning', text: summary || 'This order has no purchase order file.' }
           : null,
     }
   }
@@ -200,7 +198,7 @@ export function nodeDetail(
           : [{ label: 'Recipients', value: found.length ? found.join(', ') : 'No address' }],
       notice:
         stoppedHere || (ran && found.length === 0)
-          ? { tone: 'warning', text: summary || 'No email address in Client Sales Email or Client Order email.' }
+          ? { tone: 'warning', text: summary || 'This order has no email address.' }
           : null,
     }
   }
@@ -229,7 +227,7 @@ export function nodeDetail(
       : !ran
         ? [{ label: 'Value', value: NOT_RUN }]
         : [
-            { label: 'Delivery', value: email?.delivery === 'sent' ? 'Sent' : 'Shown here' },
+            { label: 'Delivery', value: email?.delivery === 'sent' ? 'Sent' : 'Prepared' },
             {
               label: 'Message',
               value: email?.html || 'Dear Helmsman Client,<br><br>Please see PO below attached for approval.',
@@ -238,14 +236,9 @@ export function nodeDetail(
           ],
     notice:
       ran && execution?.mode === 'test'
-        ? {
-            tone: 'warning',
-            text: 'Test mode. The Helmsman staging database was updated. Monday was not changed. The email was not sent.',
-          }
-        : ran && execution?.mode === 'production'
-          ? { tone: 'warning', text: 'Production mode. The Helmsman production database and Monday were updated.' }
-          : ran && logged
-            ? { tone: 'warning', text: 'Email is not configured, so this email was not sent.' }
+        ? { tone: 'warning', text: 'Practice run. The email was not sent.' }
+        : ran && logged
+          ? { tone: 'warning', text: 'The email was prepared here and was not sent.' }
             : stoppedHere
               ? { tone: 'error', text: summary || 'The email was not sent.' }
               : null,
@@ -270,194 +263,125 @@ function tableField(
   }
 }
 
-function inventoryResultNotice(run: Execution['inventory']): FlowNotice | null {
-  if (!run) return null
+function prettyDate(value?: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '')
+  if (!match) return value || ''
+  return `${match[2]}/${match[3]}/${match[1]}`
+}
+
+function resultLine(run: Execution['inventory']): string {
+  if (!run) return ''
   const updated = run.updated ?? run.updates?.length ?? 0
   const added = run.inserted ?? run.inserts?.length ?? 0
   const created = run.productsCreated ?? run.created?.length ?? 0
   const dates = run.datesUpdated ?? 0
   const removed = run.removed ?? 0
-  const stockUpdated = run.databaseUpdated ?? 0
-  const stockAdded = run.databaseInserted ?? 0
-  const products = created > 0 ? ` Created ${created} products.` : ''
-  const dateNote = dates > 0 ? ` Set the inventory date on ${dates} rows.` : ''
-  const removedNote = removed > 0 ? ` Set ${removed} removed codes to 0.` : ''
-  if (run.mode === 'test') {
-    return {
-      tone: 'warning',
-      text:
-        `Test mode. Updated ${stockUpdated} stock rows and added ${stockAdded} in the Helmsman staging database. ` +
-        `Monday was not changed. Would update ${updated} quantities and add ${added}.${removedNote}${dateNote}${products}`,
-    }
-  }
-  if (run.mode === 'production') {
-    return {
-      tone: 'warning',
-      text:
-        `Production mode. Updated ${updated} quantities and added ${added} on Monday.${removedNote}${dateNote} ` +
-        `Updated ${stockUpdated} stock rows and added ${stockAdded} in the Helmsman production database.${products}`,
-    }
-  }
-  return null
+  const parts: string[] = []
+  if (updated) parts.push(`${updated} quantities updated`)
+  if (removed) parts.push(`${removed} missing codes set to zero`)
+  if (dates) parts.push(`${dates} dates refreshed`)
+  if (added) parts.push(`${added} new codes added`)
+  if (created) parts.push(`${created} new products added`)
+  const sentence = parts.length
+    ? `${parts[0].charAt(0).toUpperCase()}${parts[0].slice(1)}${parts.length > 1 ? `, ${parts.slice(1).join(', ')}` : ''}.`
+    : 'Everything already matched.'
+  if (run.mode === 'test') return `Practice run. ${sentence} Nothing was saved to the live inventory.`
+  return sentence
 }
 
 export function inventoryNodeDetail(index: number, execution: Execution | null): FlowNodeDetail {
   const run = execution?.inventory
   const ran = Boolean(execution && execution.status !== 'pending' && execution.status !== 'running')
   const failed = execution?.status === 'error' || execution?.status === 'incomplete'
-  const empty = [{ label: 'Value', value: ran ? execution?.summary || '—' : EMPTY }]
-  const files = (run?.files ?? []).map((file) => [file.name, file.modifiedTime || ''])
-  const catalog = (run?.catalog ?? []).map((row) => [row.code, row.name, String(row.pieces)])
+  const waiting = [{ label: 'Result', value: ran ? friendlyText(execution?.summary || '—') : EMPTY }]
   const created = (run?.created ?? []).map((row) => [row.code, row.name, String(row.pieces)])
-  const stock = (run?.stock ?? []).map((row) => [row.code, row.name, String(row.pieces ?? ''), String(row.available)])
-  const updates = (run?.updates ?? []).map((row) => [
-    row.code || '',
-    row.name || '',
-    String(row.available),
-    row.date,
-    row.item_id,
-  ])
-  const inserts = (run?.inserts ?? []).map((row) => [
-    row.code,
-    row.name,
-    String(row.available),
-    row.date,
-    row.product_id || '',
-  ])
-  const hasRows = Boolean(run && (run.files || run.catalog || run.stock || run.updates || run.inserts || run.created))
+  const updates = (run?.updates ?? []).map((row) => [row.code || '', row.name || '', String(row.available), row.date])
+  const inserts = (run?.inserts ?? []).map((row) => [row.code, row.name, String(row.available), row.date])
+  const stopped = failed
+    ? { tone: execution?.status === 'error' ? 'error' as const : 'warning' as const, text: friendlyText(execution?.summary || 'The update stopped.') }
+    : null
   const steps: FlowNodeDetail[] = [
     {
-      settings: [
-        { label: 'Folder', value: '7D Daily Inventory' },
-        { label: 'Choice', value: 'A free model picks the latest inventory file. The date in the file name is the inventory date.' },
-      ],
-      input: hasRows ? [tableField('Files', ['Name', 'Modified'], files)] : empty,
-      output: hasRows
-        ? [
-            { label: 'File', value: run?.fileName || '—' },
-            { label: 'Chosen by', value: run?.chosenBy || '—' },
-          ]
-        : [{ label: 'File', value: run?.fileName || EMPTY }],
-      notice: failed ? { tone: execution?.status === 'error' ? 'error' : 'warning', text: execution?.summary || 'The run stopped.' } : null,
+      settings: [],
+      input: waiting,
+      output: [{ label: 'File', value: run?.fileName || (ran ? '—' : EMPTY) }],
+      notice: stopped,
     },
     {
-      settings: [
-        { label: 'Tabs', value: 'cases and with Merch' },
-        { label: 'Board', value: '3649701177' },
-        { label: 'Code', value: 'text3' },
-        { label: 'Pieces', value: 'numbers15' },
-      ],
-      input: hasRows ? [tableField('Sheet rows', ['Code', 'Item', 'Pieces'], catalog)] : empty,
-      output: hasRows ? [tableField('Products to create', ['Code', 'Item', 'Pieces'], created)] : empty,
+      settings: [],
+      input: waiting,
+      output: created.length
+        ? [tableField('New products', ['Code', 'Item', 'Pieces'], created)]
+        : [{ label: 'New products', value: ran ? 'None' : EMPTY }],
       notice: null,
     },
     {
-      settings: [
-        { label: 'Cases column', value: 'balance case qty' },
-        { label: 'Merch tab', value: 'with merch, or Sheet2 when that tab exists' },
-        { label: 'Merch column', value: 'available per case' },
-      ],
-      input: hasRows ? [tableField('Sheet rows', ['Code', 'Item', 'Pieces', 'Available'], stock)] : empty,
-      output: hasRows ? [tableField('Quantity used', ['Code', 'Item', 'Pieces', 'Available'], stock)] : empty,
+      settings: [],
+      input: waiting,
+      output: [{ label: 'Codes read', value: run?.stock?.length ? String(run.stock.length) : ran ? '—' : EMPTY }],
       notice: null,
     },
     {
-      settings: [
-        { label: 'Board', value: '9222203783' },
-        { label: 'Available', value: 'numeric_mkxw3n3f' },
-        { label: 'Date', value: 'date_mkxwddre' },
-        { label: '7D warehouse', value: '6285816206' },
+      settings: [],
+      input: waiting,
+      output: [
+        { label: 'Result', value: run ? resultLine(run) : ran ? friendlyText(execution?.summary || '—') : EMPTY },
+        ...(updates.length ? [tableField('Changes', ['Code', 'Item', 'Available', 'Date'], updates)] : []),
+        ...(inserts.length ? [tableField('New codes', ['Code', 'Item', 'Available', 'Date'], inserts)] : []),
       ],
-      input: hasRows ? [tableField('Quantities', ['Code', 'Item', 'Pieces', 'Available'], stock)] : empty,
-      output: hasRows
-        ? [
-            tableField('Updates', ['Code', 'Item', 'Available', 'Date', 'Monday item'], updates),
-            tableField('Adds', ['Code', 'Item', 'Available', 'Date', 'Product'], inserts),
-          ]
-        : empty,
-      notice: inventoryResultNotice(run),
+      notice: null,
     },
   ]
-  return steps[index] ?? { settings: [], input: empty, output: empty, notice: null }
+  return steps[index] ?? { settings: [], input: waiting, output: waiting, notice: null }
 }
 
 export function warehouseNodeDetail(index: number, execution: Execution | null): FlowNodeDetail {
   const run = execution?.inventory
   const ran = Boolean(execution && execution.status !== 'pending' && execution.status !== 'running')
   const failed = execution?.status === 'error' || execution?.status === 'incomplete'
-  const empty = [{ label: 'Value', value: ran ? execution?.summary || '—' : EMPTY }]
-  const stock = (run?.stock ?? []).map((row) => [
-    row.code,
-    String(row.available),
-    String(row.allocated ?? 0),
-    String(row.inBond ?? 0),
-  ])
+  const waiting = [{ label: 'Result', value: ran ? friendlyText(execution?.summary || '—') : EMPTY }]
   const updates = (run?.updates ?? []).map((row) => [
     row.code || '',
     String(row.available),
     String(row.allocated ?? 0),
     String(row.inBond ?? 0),
     row.date,
-    row.item_id,
   ])
-  const hasRows = Boolean(run && (run.stock || run.updates))
+  const stopped = failed
+    ? { tone: execution?.status === 'error' ? 'error' as const : 'warning' as const, text: friendlyText(execution?.summary || 'The update stopped.') }
+    : null
   const steps: FlowNodeDetail[] = [
     {
-      settings: [
-        { label: 'Folder', value: 'Warehouses folder' },
-        { label: 'File', value: execution?.order?.name || 'The newest file for this warehouse' },
-        { label: 'Date', value: 'The date in the file name, written to Last Input' },
+      settings: [],
+      input: waiting,
+      output: [
+        { label: 'File', value: run?.fileName || (ran ? '—' : EMPTY) },
+        { label: 'Date', value: prettyDate(run?.chosenBy) || (ran ? '—' : EMPTY) },
       ],
-      input: empty,
-      output: hasRows
-        ? [
-            { label: 'Warehouse', value: run?.fileName || execution?.order?.name || '—' },
-            { label: 'Inventory date', value: run?.chosenBy || '—' },
-            { label: 'Spreadsheet', value: run?.spreadsheetIds?.[0] || execution?.order?.spreadsheetId || '—' },
-          ]
-        : [{ label: 'Spreadsheet', value: run?.spreadsheetIds?.[0] || EMPTY }],
-      notice: failed ? { tone: execution?.status === 'error' ? 'error' : 'warning', text: execution?.summary || 'The run stopped.' } : null,
+      notice: stopped,
     },
     {
-      settings: [
-        { label: 'FDL', value: 'Available, Allocated, and In Bond are summed by column position.' },
-        { label: 'Hanover', value: 'Cases plus bottles divided by items per case. In Bond uses the existing Hanover formula.' },
-        { label: 'Network Logistics', value: 'Available Primary is summed. Allocated and In Bond stay 0.' },
-      ],
-      input: hasRows ? [tableField('Sheet quantities', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
-      output: hasRows ? [tableField('Quantity used', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
+      settings: [],
+      input: waiting,
+      output: [{ label: 'Codes read', value: run?.stock?.length ? String(run.stock.length) : ran ? '—' : EMPTY }],
       notice: null,
     },
     {
-      settings: [
-        { label: 'Available', value: 'numeric94' },
-        { label: 'Allocated', value: 'numeric0' },
-        { label: 'In Bond', value: 'numeric3' },
-        { label: 'Last Input', value: 'date4' },
-      ],
-      input: hasRows ? [tableField('Sheet quantities', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
-      output: hasRows
-        ? [tableField('Monday changes', ['Code', 'Available', 'Allocated', 'In Bond', 'Date', 'Monday item'], updates)]
-        : empty,
-      notice: inventoryResultNotice(run),
+      settings: [],
+      input: waiting,
+      output: updates.length
+        ? [tableField('Changes', ['Code', 'Available', 'Allocated', 'In bond', 'Date'], updates)]
+        : [{ label: 'Changes', value: ran ? 'No quantities needed a change' : EMPTY }],
+      notice: null,
     },
     {
-      settings: [
-        { label: 'Tax Paid', value: 'Available' },
-        { label: 'Allocated', value: 'Allocated' },
-        { label: 'Held In Bond', value: 'In Bond' },
-      ],
-      input: hasRows ? [tableField('Stock levels', ['Code', 'Available', 'Allocated', 'In Bond'], stock)] : empty,
-      output: hasRows
-        ? [
-            { label: 'Stock rows updated', value: String(run?.databaseUpdated ?? 0) },
-            { label: 'Stock rows added', value: String(run?.databaseInserted ?? 0) },
-          ]
-        : empty,
-      notice: inventoryResultNotice(run),
+      settings: [],
+      input: waiting,
+      output: [{ label: 'Result', value: run ? resultLine(run) : ran ? friendlyText(execution?.summary || '—') : EMPTY }],
+      notice: null,
     },
   ]
-  return steps[index] ?? { settings: [], input: empty, output: empty, notice: null }
+  return steps[index] ?? { settings: [], input: waiting, output: waiting, notice: null }
 }
 
 

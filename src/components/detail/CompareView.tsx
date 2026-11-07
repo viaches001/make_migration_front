@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchInventoryCompare, type CompareRow, type InventoryCompare } from '@/lib/api'
-import { cn } from '@/lib/format'
+import { cn, friendlyText } from '@/lib/format'
 
 type CompareSection = 'duplicates' | 'compare'
 
@@ -16,7 +16,7 @@ function SourceLine({ report }: { report: InventoryCompare }) {
     <div className="rounded-2xl border border-helm-100 bg-white px-4 py-3 text-sm text-helm-600">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-helm-300">
-          {source.label || '7D inventory spreadsheet'}
+          Inventory file
         </span>
         <a
           href={source.url}
@@ -26,7 +26,7 @@ function SourceLine({ report }: { report: InventoryCompare }) {
         >
           {source.name || 'Open spreadsheet'}
         </a>
-        {source.date && <span className="text-helm-400">Data date {fileDate(source.date)}</span>}
+        {source.date && <span className="text-helm-400">{fileDate(source.date)}</span>}
       </div>
     </div>
   )
@@ -104,6 +104,8 @@ function DataTable({
                         <a href={row.url} target="_blank" rel="noreferrer" className="font-medium hover:text-helm-500">
                           {row.name || row.itemId}
                         </a>
+                      ) : column.key === 'date' ? (
+                        fileDate(String(row.date ?? ''))
                       ) : (
                         String(row[column.key as keyof CompareRow] ?? '')
                       )}
@@ -133,8 +135,6 @@ export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioI
   const [report, setReport] = useState<InventoryCompare | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const warehouse = scenarioId !== 'sc-inventory-sync-7d'
-
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -161,14 +161,12 @@ export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioI
   if (loading) {
     return (
       <p className="text-sm text-helm-400">
-        {warehouse
-          ? 'Reading Monday and the warehouse inventory spreadsheet.'
-          : 'Reading Monday and the 7D inventory spreadsheet.'}
+        Checking the latest inventory file.
       </p>
     )
   }
   if (error || !report) {
-    return <p className="text-sm text-red-600">{error || 'Could not load the comparison'}</p>
+    return <p className="text-sm text-red-600">{friendlyText(error || 'The comparison could not be loaded.')}</p>
   }
 
   const quantities = quantityColumns(report.variant === 'warehouse')
@@ -180,25 +178,21 @@ export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioI
       {section === 'duplicates' ? (
         <div className="flex flex-col gap-4">
           <DataTable
-            title="Monday board duplicates"
+            title="Listed more than once"
             rows={report.mondayDuplicates}
-            empty="No duplicate Scribebase IDs on the Monday board."
+            empty="No code is listed more than once."
             columns={[
-              { key: 'code', label: 'Scribebase ID' },
+              { key: 'code', label: 'Code' },
               { key: 'item', label: 'Item' },
               ...quantities,
-              { key: 'date', label: 'Last Input' },
+              { key: 'date', label: 'Date' },
               { key: 'copies', label: 'Copies' },
             ]}
           />
           <DataTable
-            title="Spreadsheet duplicates"
+            title="Repeated in the file"
             rows={report.sheetDuplicates}
-            empty={
-              report.variant === 'warehouse'
-                ? 'No duplicate codes on the inventory spreadsheet.'
-                : 'No duplicate codes on the 7D inventory spreadsheet.'
-            }
+            empty="No code is repeated in the file."
             columns={[
               { key: 'code', label: 'Code' },
               { key: 'name', label: 'Item' },
@@ -211,21 +205,21 @@ export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioI
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <DataTable
-            title="Monday rows that differ"
+            title="Different in the current inventory"
             rows={report.mondayDifferences}
-            empty="Every Monday Scribebase ID matches the spreadsheet quantity."
+            empty="The current inventory matches the file."
             columns={[
-              { key: 'code', label: 'Scribebase ID' },
+              { key: 'code', label: 'Code' },
               { key: 'item', label: 'Item' },
               ...quantities,
-              { key: 'date', label: 'Last Input' },
+              { key: 'date', label: 'Date' },
               { key: 'status', label: 'Difference' },
             ]}
           />
           <DataTable
-            title="Spreadsheet rows that differ"
+            title="Different in the new file"
             rows={report.sheetDifferences}
-            empty="Every spreadsheet code matches a Monday quantity."
+            empty="The file matches the current inventory."
             columns={[
               { key: 'code', label: 'Code' },
               { key: 'name', label: 'Item' },

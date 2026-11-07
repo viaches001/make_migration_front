@@ -21,7 +21,7 @@ import { flowOutcome, inventoryFlowOutcome } from '@/components/detail/flowNodes
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
-import { cn, formatDateTime } from '@/lib/format'
+import { cn, formatDateTime, friendlyText } from '@/lib/format'
 
 export function ScenarioDetailPage() {
   const { id = '' } = useParams()
@@ -102,15 +102,6 @@ export function ScenarioDetailPage() {
   const inventoryScenario = id === 'sc-inventory-sync-7d'
   const warehouseScenario =
     id === 'sc-inventory-sync-fdl' || id === 'sc-inventory-sync-hanover' || id === 'sc-inventory-sync-nl'
-  const webhookPath = inventoryScenario
-    ? '/api/webhooks/inventory-sync-7d'
-    : id === 'sc-inventory-sync-fdl'
-      ? '/api/webhooks/inventory-sync-fdl'
-      : id === 'sc-inventory-sync-hanover'
-        ? '/api/webhooks/inventory-sync-hanover'
-        : id === 'sc-inventory-sync-nl'
-          ? '/api/webhooks/inventory-sync-network-logistics'
-          : '/api/webhooks/monday/brand-approval'
   const showCompare = (inventoryScenario || warehouseScenario) && mode === 'production'
   const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
   const outcomeFor = inventoryScenario || warehouseScenario ? inventoryFlowOutcome : flowOutcome
@@ -122,7 +113,7 @@ export function ScenarioDetailPage() {
       guard += 1
       setFlowExecution(body.execution)
       setFlowProgress({ current: 0 })
-      setProgressNote(body.execution.summary ?? 'Writing Monday.')
+      setProgressNote(friendlyText(body.execution.summary ?? 'Saving the inventory.'))
       body = await continueExecution(id, body.execution.id)
     }
     const outcome = outcomeFor(body.execution)
@@ -130,7 +121,7 @@ export function ScenarioDetailPage() {
     setFlowProgress(outcome)
     setProgressNote(null)
     await load()
-    showToast(body.execution.summary ?? 'Sample run finished')
+    showToast(friendlyText(body.execution.summary ?? 'Finished'))
   }
 
   async function handleRunSample() {
@@ -172,7 +163,7 @@ export function ScenarioDetailPage() {
   async function handleIgnore(execId: string) {
     await ignoreExecution(id, execId)
     await load()
-    showToast('Incomplete execution ignored')
+    showToast('Cleared')
   }
 
   if (missing) {
@@ -189,7 +180,7 @@ export function ScenarioDetailPage() {
   }
 
   if (!scenario) {
-    return <p className="px-6 py-8 text-sm text-helm-400">{error ?? 'Loading scenario…'}</p>
+    return <p className="px-6 py-8 text-sm text-helm-400">{error ? friendlyText(error) : 'Loading…'}</p>
   }
 
   const status = scenario.status
@@ -206,7 +197,7 @@ export function ScenarioDetailPage() {
           className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-helm-400 hover:text-helm-600"
         >
           <ArrowLeft className="h-4 w-4" />
-          Scenarios
+          Home
         </Link>
 
         <div className="flex flex-col gap-3 pb-3 lg:flex-row lg:items-center lg:justify-between">
@@ -218,11 +209,6 @@ export function ScenarioDetailPage() {
               <span className="text-xs text-helm-300">
                 Last run {formatDateTime(scenario.lastRunAt)}
               </span>
-              {mailMode && (
-                <span className="text-xs text-helm-300">
-                  {mailMode === 'ses' ? 'Mail sends through AWS SES' : 'Email is not configured'}
-                </span>
-              )}
             </div>
             <h1 className="font-display text-xl font-semibold tracking-tight text-helm-700 sm:text-2xl">
               {scenario.name}
@@ -231,9 +217,6 @@ export function ScenarioDetailPage() {
               <>
                 <p className="mt-0.5 max-w-4xl text-sm text-helm-400">
                   {scenario.description}
-                </p>
-                <p className="mt-1 font-mono text-[11px] text-helm-300">
-                  POST {webhookPath}
                 </p>
               </>
             )}
@@ -279,7 +262,7 @@ export function ScenarioDetailPage() {
         </div>
 
         {progressNote && <p className="pb-2 text-sm text-helm-500">{progressNote}</p>}
-        {error && <p className="pb-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="pb-2 text-sm text-red-600">{friendlyText(error)}</p>}
 
         <DetailTabs
           active={activeTab}

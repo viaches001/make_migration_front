@@ -44,7 +44,7 @@ export function AppShell() {
               <p className="font-display text-sm font-semibold tracking-tight text-helm-600">
                 Helmsman
               </p>
-              <p className="text-xs text-helm-400">Automations</p>
+              <p className="text-xs text-helm-400">Inventory</p>
             </div>
           </Link>
 
@@ -61,14 +61,14 @@ export function AppShell() {
                 ].join(' ')
               }
             >
-              Scenarios
+              Home
             </NavLink>
           </nav>
 
           <div className="flex items-center gap-2">
             <div
               role="group"
-              aria-label="Run mode"
+              aria-label="Practice or live"
               className="flex rounded-full border border-helm-100 bg-helm-50 p-0.5"
             >
               <button
@@ -80,7 +80,7 @@ export function AppShell() {
                   mode === 'test' ? 'bg-white text-helm-700 shadow-sm' : 'text-helm-400 hover:text-helm-600',
                 )}
               >
-                Test
+                Practice
               </button>
               <button
                 type="button"
@@ -91,7 +91,7 @@ export function AppShell() {
                   mode === 'production' ? 'bg-helm-600 text-white shadow-sm' : 'text-helm-400 hover:text-helm-600',
                 )}
               >
-                Production
+                Live
               </button>
             </div>
             <img

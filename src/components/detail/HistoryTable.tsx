@@ -1,6 +1,6 @@
 import { Sparkles } from 'lucide-react'
 import type { Execution } from '@/types/automation'
-import { cn, formatDateTime, formatDuration } from '@/lib/format'
+import { cn, formatDateTime, formatDuration, friendlyText } from '@/lib/format'
 
 interface Props {
   rows: Execution[]
@@ -17,7 +17,11 @@ const statusStyles: Record<string, string> = {
 }
 
 function statusLabel(status: string) {
-  if (status === 'running' || status === 'pending') return 'Pending'
+  if (status === 'running' || status === 'pending') return 'Working'
+  if (status === 'success') return 'Done'
+  if (status === 'error') return 'Problem'
+  if (status === 'incomplete') return 'Stopped'
+  if (status === 'warning') return 'Check'
   return status
 }
 
@@ -28,7 +32,7 @@ function isPending(status: string) {
 function runMode(row: Execution) {
   if (row.mode === 'test' || row.mode === 'production') return row.mode
   if (row.inventory?.mode === 'test' || row.inventory?.mode === 'production') return row.inventory.mode
-  if (row.summary?.startsWith('Test mode')) return 'test'
+  if (row.summary?.startsWith('Test mode') || row.summary?.startsWith('Practice run')) return 'test'
   return null
 }
 
@@ -36,7 +40,7 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-helm-200 bg-white px-6 py-14 text-center text-sm text-helm-400">
-        No executions yet for this scenario.
+        Nothing has run yet.
       </div>
     )
   }
@@ -46,12 +50,11 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
       <table className="w-full text-left text-sm">
         <thead className="bg-canvas/80 text-[11px] uppercase tracking-wider text-helm-300">
           <tr>
-            <th className="px-4 py-3 font-semibold">Status</th>
-            <th className="px-4 py-3 font-semibold">Mode</th>
-            <th className="px-4 py-3 font-semibold">Started</th>
-            <th className="px-4 py-3 font-semibold">Duration</th>
-            <th className="px-4 py-3 font-semibold">Operations</th>
-            <th className="px-4 py-3 font-semibold">Summary</th>
+            <th className="px-4 py-3 font-semibold">Result</th>
+            <th className="px-4 py-3 font-semibold">Saved</th>
+            <th className="px-4 py-3 font-semibold">When</th>
+            <th className="px-4 py-3 font-semibold">Took</th>
+            <th className="px-4 py-3 font-semibold">What happened</th>
             <th className="px-4 py-3 font-semibold" />
           </tr>
         </thead>
@@ -75,13 +78,13 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
                 {mode ? (
                   <span
                     className={cn(
-                      'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize',
+                      'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold',
                       mode === 'production'
                         ? 'bg-helm-600 text-white'
                         : 'bg-helm-50 text-helm-600',
                     )}
                   >
-                    {mode}
+                    {mode === 'production' ? 'Yes' : 'Practice only'}
                   </span>
                 ) : (
                   <span className="text-helm-300">—</span>
@@ -91,9 +94,8 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
               <td className="px-4 py-3 text-helm-500">
                 {isPending(row.status) ? '—' : formatDuration(row.durationMs)}
               </td>
-              <td className="px-4 py-3 text-helm-500">{isPending(row.status) ? '—' : row.operations}</td>
-              <td className="max-w-xs truncate px-4 py-3 text-helm-400">
-                {isPending(row.status) ? 'Running' : (row.summary ?? row.errorSummary ?? 'Completed successfully')}
+              <td className="max-w-md truncate px-4 py-3 text-helm-500">
+                {isPending(row.status) ? 'Working' : friendlyText(row.summary ?? row.errorSummary ?? 'Finished')}
               </td>
               <td className="px-4 py-3 text-right">
                 <div className="flex justify-end gap-2">

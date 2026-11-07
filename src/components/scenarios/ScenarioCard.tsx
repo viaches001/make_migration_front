@@ -29,7 +29,7 @@ export function ScenarioCard({ scenario, onToggle }: Props) {
                 isOn ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500',
               )}
             >
-              {isOn ? 'Active' : 'Inactive'}
+              {isOn ? 'On' : 'Off'}
             </span>
             <span className="rounded-full bg-helm-50 px-2 py-0.5 text-[11px] font-medium text-helm-400">
               {scenario.folder}
@@ -74,7 +74,7 @@ export function ScenarioCard({ scenario, onToggle }: Props) {
         </span>
         {scenario.lastRunAt && (
           <span className="ml-auto font-semibold text-helm-600">
-            {scenario.successRate.toFixed(1)}% success
+            {scenario.successRate >= 99 ? 'Working smoothly' : 'Some runs need a look'}
           </span>
         )}
       </div>

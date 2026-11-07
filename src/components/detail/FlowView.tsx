@@ -1,8 +1,7 @@
-import { useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Check, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { Execution } from '@/types/automation'
-import { cn } from '@/lib/format'
+import { cn, friendlyText } from '@/lib/format'
 import { inventoryNodeDetail, nodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
@@ -18,40 +17,40 @@ interface Step {
 const steps: Step[] = [
   {
     icon: Webhook,
-    kicker: 'Monday',
-    title: 'Column webhook',
-    detail: 'Outgoing Orders :: share. A Client Status change starts the run.',
+    kicker: 'Start',
+    title: 'Order is ready',
+    detail: 'Starts when an order is marked for brand approval.',
   },
   {
     icon: Square,
-    kicker: 'Monday',
-    title: 'Get item',
-    detail: 'Load the order, including the parent item and subitems.',
+    kicker: 'Order',
+    title: 'Read the order',
+    detail: 'Opens the order, the purchase order, and the email addresses.',
   },
   {
     icon: Filter,
-    kicker: 'Filter',
-    title: 'Brand Approval',
-    detail: 'Continue only when Client Status is exactly Brand Approval.',
-    stop: 'Any other status stops the run.',
+    kicker: 'Check',
+    title: 'Brand approval',
+    detail: 'Continues only when the order is ready for brand approval.',
+    stop: 'Any other status stops here.',
   },
   {
     icon: FileDown,
-    kicker: 'Monday',
-    title: 'Download PO',
-    detail: 'Take each file in the PO File column. One email is sent per file.',
+    kicker: 'File',
+    title: 'Purchase order',
+    detail: 'Collects each purchase order file. One email is sent for each file.',
   },
   {
     icon: MailSearch,
     kicker: 'Email',
-    title: 'Find addresses',
-    detail: 'Use the first address in Client Sales Email and Client Order email.',
+    title: 'Who receives it',
+    detail: 'Uses the client email addresses on the order.',
   },
   {
     icon: Mail,
-    kicker: 'Email',
-    title: 'Send email',
-    detail: 'Subject is Brand Approval for PO, with the purchase order attached.',
+    kicker: 'Send',
+    title: 'Send the email',
+    detail: 'Emails the purchase order and asks the client to approve it.',
   },
 ]
 
@@ -60,27 +59,27 @@ export const FLOW_STEP_COUNT = steps.length
 const inventorySteps: Step[] = [
   {
     icon: Filter,
-    kicker: 'Google Drive',
-    title: 'Latest inventory',
-    detail: 'A free model picks the newest 7D inventory file in the 7D Daily Inventory folder.',
+    kicker: 'File',
+    title: 'Newest file',
+    detail: 'Opens the latest 7D inventory file.',
   },
   {
     icon: Square,
-    kicker: 'Monday',
-    title: 'Products',
-    detail: 'Create any code from cases or with Merch that is not on the product board yet.',
+    kicker: 'Catalog',
+    title: 'New products',
+    detail: 'Adds any product that is not in the catalog yet.',
   },
   {
     icon: FileDown,
-    kicker: 'Google Sheets',
-    title: 'Case quantities',
-    detail: 'Use balance case qty when a case row exists. Otherwise use available per case.',
+    kicker: 'Quantities',
+    title: 'Read quantities',
+    detail: 'Reads how many cases are available.',
   },
   {
     icon: Check,
-    kicker: 'Monday',
-    title: 'Inventory',
-    detail: 'Update the 7D warehouse rows and add codes that are not stocked there yet.',
+    kicker: 'Save',
+    title: 'Update inventory',
+    detail: 'Saves the new quantities and dates.',
   },
 ]
 
@@ -89,27 +88,27 @@ export const INVENTORY_FLOW_STEP_COUNT = inventorySteps.length
 const warehouseSteps: Step[] = [
   {
     icon: Filter,
-    kicker: 'Google Sheets',
-    title: 'Warehouses folder',
-    detail: 'Open the newest inventory file for this warehouse in the warehouses folder.',
+    kicker: 'File',
+    title: 'Newest file',
+    detail: 'Opens the latest inventory file for this warehouse.',
   },
   {
     icon: FileDown,
-    kicker: 'Google Sheets',
-    title: 'Quantities',
-    detail: 'Sum Available, Allocated, and In Bond by Scribebase ID.',
+    kicker: 'Quantities',
+    title: 'Read quantities',
+    detail: 'Adds up available, allocated, and in bond for each code.',
   },
   {
     icon: Square,
-    kicker: 'Monday',
-    title: 'Inventory board',
-    detail: 'Update rows whose quantities or Last Input differ. Leave every other row as it is.',
+    kicker: 'Changes',
+    title: 'What changed',
+    detail: 'Keeps only the codes whose quantity or date is different.',
   },
   {
     icon: Check,
-    kicker: 'Helmsman',
-    title: 'Stock',
-    detail: 'Write Tax Paid, Allocated, and Held In Bond for this warehouse.',
+    kicker: 'Save',
+    title: 'Update inventory',
+    detail: 'Saves those quantities for this warehouse.',
   },
 ]
 
@@ -168,10 +167,10 @@ export function FlowView({
     <section
       aria-label={
         variant === 'inventory'
-          ? 'Inventory sync flow, view only'
+          ? '7D inventory steps'
           : variant === 'warehouse'
-            ? 'Warehouse inventory sync flow, view only'
-            : 'Brand Approval flow, view only'
+            ? 'Warehouse inventory steps'
+            : 'Brand approval steps'
       }
       className="relative min-h-[440px] min-w-0 flex-1 overflow-auto rounded-2xl border border-helm-100 bg-white"
     >
@@ -183,10 +182,7 @@ export function FlowView({
           backgroundSize: '18px 18px',
         }}
       />
-      <p className="relative px-5 pt-4 text-[11px] font-semibold uppercase tracking-wide text-helm-300">
-        View only
-      </p>
-      <div className="relative flex min-w-max items-start px-5 pb-8 pt-4">
+      <div className="relative flex min-w-max items-start px-5 pb-8 pt-6">
         {activeSteps.map((step, index) => {
           const state = stepState(index, progress, hasResult)
           return (
@@ -251,7 +247,12 @@ export function FlowView({
         })}
       </div>
     </section>
-    <NodeInspector title={selectedTitle} detail={detail} onClose={() => onSelect(null)} />
+    <NodeInspector
+      title={selectedTitle}
+      blurb={selected == null ? '' : activeSteps[selected]?.detail || ''}
+      detail={detail}
+      onClose={() => onSelect(null)}
+    />
     </div>
   )
 }
@@ -265,32 +266,27 @@ function hideUnrun(
   return { ...detail, input: waiting, output: waiting, notice: null }
 }
 
-type InspectorTab = 'input' | 'output' | 'settings' | 'notice'
-
 function NodeInspector({
   title,
+  blurb,
   detail,
   onClose,
 }: {
   title: string
+  blurb: string
   detail: ReturnType<typeof nodeDetail> | null
   onClose: () => void
 }) {
-  const [tab, setTab] = useState<InspectorTab>('input')
-  const noticeLabel = detail?.notice?.tone === 'error' ? 'Error' : 'Warning'
-
   return (
     <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-helm-100 bg-white xl:w-[520px]">
       {detail == null ? (
-        <p className="px-4 py-6 text-sm leading-relaxed text-helm-400">
-          Click a step to see its input, output, settings, and any error or warning.
-        </p>
+        <p className="px-5 py-8 text-sm leading-relaxed text-helm-400">Choose a step to see what it does.</p>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex items-start justify-between gap-3 px-4 py-3">
+          <div className="flex items-start justify-between gap-3 px-5 py-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-helm-300">Step</p>
               <h3 className="font-display text-base font-semibold text-helm-700">{title}</h3>
+              {blurb && <p className="mt-1 text-sm leading-relaxed text-helm-400">{blurb}</p>}
             </div>
             <button
               type="button"
@@ -301,56 +297,18 @@ function NodeInspector({
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="flex gap-1 border-b border-helm-100 px-2" role="tablist" aria-label="Step details">
-            {(
-              [
-                ['input', 'Input'],
-                ['output', 'Output'],
-                ['settings', 'Settings'],
-                ['notice', noticeLabel],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={tab === id}
-                onClick={() => setTab(id)}
+          <div className="overflow-auto px-5 pb-5">
+            {detail.notice && (
+              <p
                 className={cn(
-                  'relative px-2.5 py-2 text-xs font-semibold',
-                  tab === id ? 'text-helm-600' : 'text-helm-300 hover:text-helm-500',
+                  'mb-4 rounded-xl px-3 py-2 text-sm leading-relaxed',
+                  detail.notice.tone === 'error' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800',
                 )}
               >
-                {label}
-                {id === 'notice' && detail.notice && (
-                  <span
-                    className={cn(
-                      'ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle',
-                      detail.notice.tone === 'error' ? 'bg-red-500' : 'bg-amber-500',
-                    )}
-                  />
-                )}
-                {tab === id && <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-helm-500" />}
-              </button>
-            ))}
-          </div>
-          <div className="overflow-auto px-4 py-4" role="tabpanel">
-            {tab === 'input' && <FieldList fields={detail.input} />}
-            {tab === 'output' && <FieldList fields={detail.output} />}
-            {tab === 'settings' && <FieldList fields={detail.settings} />}
-            {tab === 'notice' &&
-              (detail.notice ? (
-                <p
-                  className={cn(
-                    'rounded-xl px-3 py-2 text-sm leading-relaxed',
-                    detail.notice.tone === 'error' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800',
-                  )}
-                >
-                  {detail.notice.text}
-                </p>
-              ) : (
-                <p className="text-sm text-helm-400">None</p>
-              ))}
+                {friendlyText(detail.notice.text)}
+              </p>
+            )}
+            <FieldList fields={detail.output} />
           </div>
         </div>
       )}

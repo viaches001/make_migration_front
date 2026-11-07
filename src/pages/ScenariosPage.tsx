@@ -19,7 +19,7 @@ export function ScenariosPage() {
         if (cancelled) return
         if (!Array.isArray(body.scenarios)) {
           setItems([])
-          setError('The API response did not include scenarios.')
+          setError('The list could not be loaded.')
           return
         }
         setItems(body.scenarios)
@@ -71,16 +71,16 @@ export function ScenariosPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="font-display text-3xl font-semibold tracking-tight text-helm-700">
-            Scenarios
+            Updates
           </h1>
         </div>
         <div className="text-sm text-helm-400">
-          <span className="font-semibold text-helm-600">{filtered.length}</span> shown
+          <span className="font-semibold text-helm-600">{filtered.length}</span>
           {' · '}
           <span className="font-semibold text-helm-600">
             {list.filter((s) => s.status === 'on').length}
           </span>{' '}
-          on
+          turned on
         </div>
       </div>
 
@@ -101,7 +101,7 @@ export function ScenariosPage() {
       )}
 
       {loading && !error && (
-        <p className="text-sm text-helm-400">Loading scenarios…</p>
+        <p className="text-sm text-helm-400">Loading…</p>
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -121,10 +121,10 @@ export function ScenariosPage() {
       {!loading && filtered.length === 0 && !error && (
         <div className="rounded-2xl border border-dashed border-helm-200 bg-white px-6 py-16 text-center">
           <p className="font-display text-lg font-semibold text-helm-600">
-            No scenarios match
+            Nothing matches
           </p>
           <p className="mt-1 text-sm text-helm-400">
-            Try clearing search or switching status / folder filters.
+            Try a different search.
           </p>
         </div>
       )}

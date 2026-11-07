@@ -10,9 +10,9 @@ interface Props {
 }
 
 const tabs: Array<{ id: DetailTab; label: string }> = [
-  { id: 'history', label: 'History' },
-  { id: 'flow', label: 'Flow' },
-  { id: 'incomplete', label: 'Incomplete executions' },
+  { id: 'history', label: 'Runs' },
+  { id: 'flow', label: 'Steps' },
+  { id: 'incomplete', label: 'Needs attention' },
   { id: 'compare', label: 'Compare' },
 ]
 

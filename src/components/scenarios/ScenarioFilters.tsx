@@ -4,9 +4,9 @@ import { cn } from '@/lib/format'
 
 const statuses: Array<{ id: 'all' | ScenarioStatus; label: string }> = [
   { id: 'all', label: 'All' },
-  { id: 'on', label: 'Active' },
-  { id: 'off', label: 'Inactive' },
-  { id: 'error', label: 'Error' },
+  { id: 'on', label: 'On' },
+  { id: 'off', label: 'Off' },
+  { id: 'error', label: 'Needs a look' },
 ]
 
 interface Props {
@@ -35,7 +35,7 @@ export function ScenarioFilters({
         <input
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          placeholder="Search scenarios…"
+          placeholder="Search"
           className="w-full rounded-xl border border-helm-100 bg-white py-2.5 pl-10 pr-3 text-sm outline-none ring-helm-500/20 focus:ring-4"
         />
       </div>
@@ -64,7 +64,7 @@ export function ScenarioFilters({
           onChange={(e) => onFolderChange(e.target.value)}
           className="rounded-xl border border-helm-100 bg-white px-3 py-2 text-xs font-semibold text-helm-600 outline-none"
         >
-          <option value="all">All folders</option>
+          <option value="all">All</option>
           {folders.map((f) => (
             <option key={f} value={f}>
               {f}
