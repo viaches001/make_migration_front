@@ -111,7 +111,7 @@ export function ScenarioDetailPage() {
         : id === 'sc-inventory-sync-nl'
           ? '/api/webhooks/inventory-sync-network-logistics'
           : '/api/webhooks/monday/brand-approval'
-  const showCompare = inventoryScenario && mode === 'production'
+  const showCompare = (inventoryScenario || warehouseScenario) && mode === 'production'
   const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
   const outcomeFor = inventoryScenario || warehouseScenario ? inventoryFlowOutcome : flowOutcome
 
@@ -326,7 +326,7 @@ export function ScenarioDetailPage() {
           />
         )}
 
-        {activeTab === 'compare' && <CompareView />}
+        {activeTab === 'compare' && <CompareView scenarioId={id} />}
       </div>
 
       {activeExecution && (

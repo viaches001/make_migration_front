@@ -16,7 +16,7 @@ function SourceLine({ report }: { report: InventoryCompare }) {
     <div className="rounded-2xl border border-helm-100 bg-white px-4 py-3 text-sm text-helm-600">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-helm-300">
-          7D inventory spreadsheet
+          {source.label || '7D inventory spreadsheet'}
         </span>
         <a
           href={source.url}
@@ -119,16 +119,28 @@ function DataTable({
   )
 }
 
-export function CompareView() {
+function quantityColumns(warehouse: boolean): Array<{ key: keyof CompareRow | 'item'; label: string }> {
+  if (!warehouse) return [{ key: 'available', label: 'Available' }]
+  return [
+    { key: 'available', label: 'Available' },
+    { key: 'allocated', label: 'Allocated' },
+    { key: 'inBond', label: 'In Bond' },
+  ]
+}
+
+export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioId?: string }) {
   const [section, setSection] = useState<CompareSection>('duplicates')
   const [report, setReport] = useState<InventoryCompare | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const warehouse = scenarioId !== 'sc-inventory-sync-7d'
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchInventoryCompare()
+    setReport(null)
+    setError(null)
+    fetchInventoryCompare(scenarioId)
       .then((body) => {
         if (!cancelled) {
           setReport(body)
@@ -144,14 +156,22 @@ export function CompareView() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scenarioId])
 
   if (loading) {
-    return <p className="text-sm text-helm-400">Reading Monday and the 7D inventory spreadsheet.</p>
+    return (
+      <p className="text-sm text-helm-400">
+        {warehouse
+          ? 'Reading Monday and the warehouse inventory spreadsheet.'
+          : 'Reading Monday and the 7D inventory spreadsheet.'}
+      </p>
+    )
   }
   if (error || !report) {
     return <p className="text-sm text-red-600">{error || 'Could not load the comparison'}</p>
   }
+
+  const quantities = quantityColumns(report.variant === 'warehouse')
 
   return (
     <div className="flex flex-col gap-4">
@@ -166,7 +186,7 @@ export function CompareView() {
             columns={[
               { key: 'code', label: 'Scribebase ID' },
               { key: 'item', label: 'Item' },
-              { key: 'available', label: 'Available' },
+              ...quantities,
               { key: 'date', label: 'Last Input' },
               { key: 'copies', label: 'Copies' },
             ]}
@@ -174,11 +194,15 @@ export function CompareView() {
           <DataTable
             title="Spreadsheet duplicates"
             rows={report.sheetDuplicates}
-            empty="No duplicate codes on the 7D inventory spreadsheet."
+            empty={
+              report.variant === 'warehouse'
+                ? 'No duplicate codes on the inventory spreadsheet.'
+                : 'No duplicate codes on the 7D inventory spreadsheet.'
+            }
             columns={[
               { key: 'code', label: 'Code' },
               { key: 'name', label: 'Item' },
-              { key: 'available', label: 'Available' },
+              ...quantities,
               { key: 'tab', label: 'Tab' },
               { key: 'copies', label: 'Copies' },
             ]}
@@ -193,7 +217,7 @@ export function CompareView() {
             columns={[
               { key: 'code', label: 'Scribebase ID' },
               { key: 'item', label: 'Item' },
-              { key: 'available', label: 'Available' },
+              ...quantities,
               { key: 'date', label: 'Last Input' },
               { key: 'status', label: 'Difference' },
             ]}
@@ -205,7 +229,7 @@ export function CompareView() {
             columns={[
               { key: 'code', label: 'Code' },
               { key: 'name', label: 'Item' },
-              { key: 'available', label: 'Available' },
+              ...quantities,
               { key: 'status', label: 'Difference' },
             ]}
           />

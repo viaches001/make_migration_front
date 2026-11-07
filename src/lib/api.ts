@@ -54,6 +54,7 @@ export function fetchIncomplete(id: string) {
 export interface CompareSource {
   spreadsheetId: string
   name: string
+  label?: string
   date: string
   url: string
 }
@@ -62,6 +63,8 @@ export interface CompareRow {
   code: string
   name: string
   available: string
+  allocated?: string
+  inBond?: string
   date?: string
   itemId?: string
   tab?: string
@@ -71,6 +74,7 @@ export interface CompareRow {
 }
 
 export interface InventoryCompare {
+  variant?: 'warehouse'
   source: CompareSource
   mondayDuplicates: CompareRow[]
   sheetDuplicates: CompareRow[]
@@ -78,8 +82,12 @@ export interface InventoryCompare {
   sheetDifferences: CompareRow[]
 }
 
-export function fetchInventoryCompare() {
-  return request<InventoryCompare>('/api/inventory/compare')
+export function fetchInventoryCompare(scenarioId?: string) {
+  const query =
+    scenarioId && scenarioId !== 'sc-inventory-sync-7d'
+      ? `?scenario=${encodeURIComponent(scenarioId)}`
+      : ''
+  return request<InventoryCompare>(`/api/inventory/compare${query}`)
 }
 
 export function runScenario(id: string, body: unknown = {}) {
