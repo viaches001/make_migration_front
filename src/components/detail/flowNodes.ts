@@ -245,10 +245,17 @@ export function nodeDetail(
   }
 }
 
-export function inventoryFlowOutcome(execution: Pick<Execution, 'status'>): FlowProgress {
-  if (execution.status === 'running' || execution.status === 'pending') return { current: 0 }
-  if (execution.status === 'error' || execution.status === 'incomplete') return { current: 0, stopped: true }
+export function inventoryFlowOutcome(execution: Pick<Execution, 'status' | 'inventory'>): FlowProgress {
+  const step = execution.inventory?.flowStep ?? 0
+  if (execution.status === 'running' || execution.status === 'pending') return { current: step }
+  if (execution.status === 'error' || execution.status === 'incomplete') return { current: step, stopped: true }
   return { current: 4 }
+}
+
+function shownStep(execution: Execution | null) {
+  if (!execution) return -1
+  if (execution.status === 'success' || execution.status === 'warning') return 4
+  return execution.inventory?.flowStep ?? 0
 }
 
 function tableField(
@@ -291,21 +298,23 @@ function resultLine(run: Execution['inventory']): string {
 
 export function inventoryNodeDetail(index: number, execution: Execution | null): FlowNodeDetail {
   const run = execution?.inventory
-  const ran = Boolean(execution && execution.status !== 'pending' && execution.status !== 'running')
+  const step = shownStep(execution)
+  const ran = step > index
   const failed = execution?.status === 'error' || execution?.status === 'incomplete'
-  const waiting = [{ label: 'Result', value: ran ? friendlyText(execution?.summary || '—') : EMPTY }]
+  const waiting = [{ label: 'Status', value: friendlyText(execution?.summary || 'Working.') }]
   const created = (run?.created ?? []).map((row) => [row.code, row.name, String(row.pieces)])
   const updates = (run?.updates ?? []).map((row) => [row.code || '', row.name || '', String(row.available), row.date])
   const inserts = (run?.inserts ?? []).map((row) => [row.code, row.name, String(row.available), row.date])
-  const stopped = failed
-    ? { tone: execution?.status === 'error' ? 'error' as const : 'warning' as const, text: friendlyText(execution?.summary || 'The update stopped.') }
-    : null
+  const stopped =
+    failed && step === index
+      ? { tone: execution?.status === 'error' ? 'error' as const : 'warning' as const, text: friendlyText(execution?.summary || 'The update stopped.') }
+      : null
   const steps: FlowNodeDetail[] = [
     {
       settings: [],
       input: waiting,
       output: [{ label: 'File', value: run?.fileName || (ran ? '—' : EMPTY) }],
-      notice: stopped,
+      notice: null,
     },
     {
       settings: [],
@@ -332,14 +341,17 @@ export function inventoryNodeDetail(index: number, execution: Execution | null):
       notice: null,
     },
   ]
-  return steps[index] ?? { settings: [], input: waiting, output: waiting, notice: null }
+  const chosen = steps[index] ?? { settings: [], input: waiting, output: waiting, notice: null }
+  if (stopped) chosen.notice = stopped
+  return chosen
 }
 
 export function warehouseNodeDetail(index: number, execution: Execution | null): FlowNodeDetail {
   const run = execution?.inventory
-  const ran = Boolean(execution && execution.status !== 'pending' && execution.status !== 'running')
+  const step = shownStep(execution)
+  const ran = step > index
   const failed = execution?.status === 'error' || execution?.status === 'incomplete'
-  const waiting = [{ label: 'Result', value: ran ? friendlyText(execution?.summary || '—') : EMPTY }]
+  const waiting = [{ label: 'Status', value: friendlyText(execution?.summary || 'Working.') }]
   const updates = (run?.updates ?? []).map((row) => [
     row.code || '',
     String(row.available),
@@ -347,9 +359,10 @@ export function warehouseNodeDetail(index: number, execution: Execution | null):
     String(row.inBond ?? 0),
     row.date,
   ])
-  const stopped = failed
-    ? { tone: execution?.status === 'error' ? 'error' as const : 'warning' as const, text: friendlyText(execution?.summary || 'The update stopped.') }
-    : null
+  const stopped =
+    failed && step === index
+      ? { tone: execution?.status === 'error' ? 'error' as const : 'warning' as const, text: friendlyText(execution?.summary || 'The update stopped.') }
+      : null
   const steps: FlowNodeDetail[] = [
     {
       settings: [],
@@ -358,7 +371,7 @@ export function warehouseNodeDetail(index: number, execution: Execution | null):
         { label: 'File', value: run?.fileName || (ran ? '—' : EMPTY) },
         { label: 'Date', value: prettyDate(run?.chosenBy) || (ran ? '—' : EMPTY) },
       ],
-      notice: stopped,
+      notice: null,
     },
     {
       settings: [],
@@ -381,7 +394,9 @@ export function warehouseNodeDetail(index: number, execution: Execution | null):
       notice: null,
     },
   ]
-  return steps[index] ?? { settings: [], input: waiting, output: waiting, notice: null }
+  const chosen = steps[index] ?? { settings: [], input: waiting, output: waiting, notice: null }
+  if (stopped) chosen.notice = stopped
+  return chosen
 }
 
 

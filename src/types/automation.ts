@@ -61,6 +61,7 @@ export interface InventoryRun {
   databaseInserted?: number
   skipped?: string[]
   mode?: string
+  flowStep?: number
   files?: Array<{ name: string; modifiedTime?: string }>
   catalog?: Array<{ code: string; name: string; pieces: number }>
   created?: Array<{ code: string; name: string; pieces: number }>

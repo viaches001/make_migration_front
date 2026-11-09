@@ -112,11 +112,8 @@ const warehouseSteps: Step[] = [
   },
 ]
 
-function stepState(index: number, progress: FlowProgress | null, hasResult: boolean) {
+function stepState(index: number, progress: FlowProgress | null) {
   if (!progress) return 'idle' as const
-  if (!hasResult) {
-    return index === progress.current ? ('active' as const) : ('idle' as const)
-  }
   if (progress.stopped && index === progress.current) return 'stopped' as const
   if (progress.stopped && index > progress.current) return 'idle' as const
   if (index < progress.current) return 'done' as const
@@ -146,9 +143,7 @@ export function FlowView({
   onSelect,
 }: Props) {
   const activeSteps = variant === 'inventory' ? inventorySteps : variant === 'warehouse' ? warehouseSteps : steps
-  const hasResult = Boolean(
-    execution && execution.status !== 'pending' && execution.status !== 'running',
-  )
+  const live = variant === 'inventory' || variant === 'warehouse'
   const detail =
     selected == null
       ? null
@@ -158,7 +153,8 @@ export function FlowView({
             : variant === 'warehouse'
               ? warehouseNodeDetail(selected, execution ?? null)
               : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
-          stepState(selected, progress, hasResult),
+          stepState(selected, progress),
+          live,
         )
   const selectedTitle = selected == null ? '' : activeSteps[selected]?.title
 
@@ -184,7 +180,7 @@ export function FlowView({
       />
       <div className="relative flex min-w-max items-start px-5 pb-8 pt-6">
         {activeSteps.map((step, index) => {
-          const state = stepState(index, progress, hasResult)
+          const state = stepState(index, progress)
           return (
             <div key={step.title} className="flex items-start">
               <div className={cn('flex w-56 flex-col items-center', state === 'idle' && progress && 'opacity-45')}>
@@ -217,6 +213,22 @@ export function FlowView({
                   </div>
                   <h3 className="font-display text-sm font-semibold text-helm-700">{step.title}</h3>
                   <p className="mt-1 text-xs leading-relaxed text-helm-400">{step.detail}</p>
+                  {live && progress && (
+                    <p
+                      className={cn(
+                        'mt-2 text-xs font-medium',
+                        state === 'stopped' ? 'text-red-700' : 'text-helm-600',
+                      )}
+                    >
+                      {state === 'done'
+                        ? 'Done'
+                        : state === 'stopped'
+                          ? friendlyText(execution?.summary || 'Stopped')
+                          : state === 'active'
+                            ? friendlyText(execution?.summary || 'Working.')
+                            : 'Waiting'}
+                    </p>
+                  )}
                 </button>
                 {step.stop && (
                   <>
@@ -260,8 +272,9 @@ export function FlowView({
 function hideUnrun(
   detail: ReturnType<typeof nodeDetail>,
   state: ReturnType<typeof stepState>,
+  live = false,
 ) {
-  if (state === 'done' || state === 'stopped') return detail
+  if (state === 'done' || state === 'stopped' || (live && state === 'active')) return detail
   const waiting = [{ label: 'Value', value: 'This step has not finished yet.' }]
   return { ...detail, input: waiting, output: waiting, notice: null }
 }

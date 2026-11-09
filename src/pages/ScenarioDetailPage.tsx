@@ -112,8 +112,10 @@ export function ScenarioDetailPage() {
     while (body.execution.status === 'running' && guard < 400) {
       guard += 1
       setFlowExecution(body.execution)
-      setFlowProgress({ current: 0 })
-      setProgressNote(friendlyText(body.execution.summary ?? 'Saving the inventory.'))
+      setFlowProgress(
+        inventoryScenario || warehouseScenario ? inventoryFlowOutcome(body.execution) : { current: 0 },
+      )
+      setProgressNote(friendlyText(body.execution.summary ?? 'Working.'))
       body = await continueExecution(id, body.execution.id)
     }
     const outcome = outcomeFor(body.execution)
