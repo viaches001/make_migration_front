@@ -75,22 +75,32 @@ function SectionTabs({
   )
 }
 
+function willSync(row: CompareRow) {
+  return row.status === 'Quantity differs'
+}
+
 function DataTable({
   title,
   rows,
   columns,
   empty,
+  markSync = false,
 }: {
   title: string
   rows: CompareRow[]
   columns: Array<{ key: keyof CompareRow | 'item'; label: string }>
   empty: string
+  markSync?: boolean
 }) {
+  const ordered = markSync ? [...rows].sort((left, right) => Number(willSync(right)) - Number(willSync(left))) : rows
+  const syncCount = markSync ? rows.filter(willSync).length : 0
   return (
     <section className="min-w-0 overflow-hidden rounded-2xl border border-helm-100 bg-white">
-      <div className="flex items-center justify-between border-b border-helm-100 px-4 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-helm-100 px-4 py-3">
         <h2 className="text-sm font-semibold text-helm-700">{title}</h2>
-        <span className="text-xs text-helm-300">{rows.length}</span>
+        <span className="text-xs text-helm-300">
+          {syncCount > 0 ? `${syncCount} to update · ${rows.length}` : rows.length}
+        </span>
       </div>
       {rows.length === 0 ? (
         <p className="px-4 py-10 text-center text-sm text-helm-400">{empty}</p>
@@ -107,23 +117,32 @@ function DataTable({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
-                <tr key={`${row.itemId || row.code}-${row.tab || ''}-${index}`} className="border-t border-helm-100">
-                  {columns.map((column) => (
-                    <td key={column.label} className="px-3 py-1.5 text-helm-600">
-                      {column.key === 'item' && row.url ? (
-                        <a href={row.url} target="_blank" rel="noreferrer" className="font-medium hover:text-helm-500">
-                          {row.name || row.itemId}
-                        </a>
-                      ) : column.key === 'date' ? (
-                        fileDate(String(row.date ?? ''))
-                      ) : (
-                        String(row[column.key as keyof CompareRow] ?? '')
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {ordered.map((row, index) => {
+                const marked = markSync && willSync(row)
+                return (
+                  <tr
+                    key={`${row.itemId || row.code}-${row.tab || ''}-${index}`}
+                    className={cn('border-t border-helm-100', marked && 'bg-amber-50')}
+                  >
+                    {columns.map((column) => (
+                      <td
+                        key={column.label}
+                        className={cn('px-3 py-1.5 text-helm-600', marked && column.key === 'status' && 'font-semibold text-amber-800')}
+                      >
+                        {column.key === 'item' && row.url ? (
+                          <a href={row.url} target="_blank" rel="noreferrer" className="font-medium hover:text-helm-500">
+                            {row.name || row.itemId}
+                          </a>
+                        ) : column.key === 'date' ? (
+                          fileDate(String(row.date ?? ''))
+                        ) : (
+                          String(row[column.key as keyof CompareRow] ?? '')
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -233,6 +252,7 @@ export function CompareView({ scenarioId = 'sc-inventory-sync-7d' }: { scenarioI
             title="Different in the new file"
             rows={report.sheetDifferences}
             empty="The file matches the current inventory."
+            markSync
             columns={[
               { key: 'code', label: 'Code' },
               { key: 'name', label: 'Item' },
