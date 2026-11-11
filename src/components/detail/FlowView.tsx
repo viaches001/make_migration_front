@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Check, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { Execution } from '@/types/automation'
 import { cn, friendlyText } from '@/lib/format'
-import { inventoryNodeDetail, nodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
+import { inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
 
@@ -13,6 +13,86 @@ interface Step {
   detail: string
   stop?: string
 }
+
+const pickupSteps: Step[] = [
+  {
+    icon: Webhook,
+    kicker: 'Start',
+    title: 'Order is staged',
+    detail: 'Starts when an account manager marks the order staged.',
+  },
+  {
+    icon: Square,
+    kicker: 'Order',
+    title: 'Read the order',
+    detail: 'Opens the purchase order, the warehouse, and the email addresses.',
+  },
+  {
+    icon: Filter,
+    kicker: 'Check',
+    title: 'Staged',
+    detail: 'Continues only when the order is staged.',
+    stop: 'Any other status stops here.',
+  },
+  {
+    icon: MailSearch,
+    kicker: 'Who',
+    title: 'Outgoing or direct',
+    detail: 'Outgoing uses the purchase order email. Direct uses both client emails.',
+  },
+  {
+    icon: FileDown,
+    kicker: 'Details',
+    title: 'Pick up details',
+    detail: 'Outgoing includes the warehouse, address, and instructions. Direct names the licensee.',
+  },
+  {
+    icon: Mail,
+    kicker: 'Send',
+    title: 'Pick up email',
+    detail: 'Tells them the order is ready for pick up.',
+  },
+]
+
+const receivedSteps: Step[] = [
+  {
+    icon: Webhook,
+    kicker: 'Start',
+    title: 'Order is received',
+    detail: 'Starts when an account manager marks the order received.',
+  },
+  {
+    icon: Square,
+    kicker: 'Order',
+    title: 'Read the order',
+    detail: 'Opens the order, the purchase order number, and the distributor email.',
+  },
+  {
+    icon: Filter,
+    kicker: 'Check',
+    title: 'Received',
+    detail: 'Continues only when the order is marked received.',
+    stop: 'Any other status stops here.',
+  },
+  {
+    icon: MailSearch,
+    kicker: 'Who',
+    title: 'Outgoing or direct',
+    detail: 'Outgoing uses the purchase order email. Direct uses the client emails.',
+  },
+  {
+    icon: FileDown,
+    kicker: 'File',
+    title: 'Purchase order',
+    detail: 'Attaches the purchase order from the order.',
+  },
+  {
+    icon: Mail,
+    kicker: 'Send',
+    title: 'Receipt email',
+    detail: 'Tells the distributor the purchase order was received.',
+  },
+]
 
 const steps: Step[] = [
   {
@@ -122,7 +202,7 @@ function stepState(index: number, progress: FlowProgress | null) {
 }
 
 interface Props {
-  variant?: 'brand' | 'inventory' | 'warehouse'
+  variant?: 'brand' | 'received' | 'pickup' | 'inventory' | 'warehouse'
   progress?: FlowProgress | null
   execution?: Execution | null
   mailMode?: 'log' | 'ses' | null
@@ -142,7 +222,16 @@ export function FlowView({
   selected,
   onSelect,
 }: Props) {
-  const activeSteps = variant === 'inventory' ? inventorySteps : variant === 'warehouse' ? warehouseSteps : steps
+  const activeSteps =
+    variant === 'inventory'
+      ? inventorySteps
+      : variant === 'warehouse'
+        ? warehouseSteps
+        : variant === 'received'
+          ? receivedSteps
+          : variant === 'pickup'
+            ? pickupSteps
+            : steps
   const live = variant === 'inventory' || variant === 'warehouse'
   const detail =
     selected == null
@@ -152,7 +241,11 @@ export function FlowView({
             ? inventoryNodeDetail(selected, execution ?? null)
             : variant === 'warehouse'
               ? warehouseNodeDetail(selected, execution ?? null)
-              : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
+              : variant === 'received'
+                ? poReceivedNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
+                : variant === 'pickup'
+                  ? pickupNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
+                  : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
           stepState(selected, progress),
           live,
         )
@@ -166,7 +259,11 @@ export function FlowView({
           ? '7D inventory steps'
           : variant === 'warehouse'
             ? 'Warehouse inventory steps'
-            : 'Brand approval steps'
+            : variant === 'received'
+              ? 'PO received steps'
+              : variant === 'pickup'
+                ? 'Ready for pick up steps'
+                : 'Brand approval steps'
       }
       className="relative min-h-[440px] min-w-0 flex-1 overflow-auto rounded-2xl border border-helm-100 bg-white"
     >

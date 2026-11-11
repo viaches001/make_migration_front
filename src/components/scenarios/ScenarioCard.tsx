@@ -31,9 +31,6 @@ export function ScenarioCard({ scenario, onToggle }: Props) {
             >
               {isOn ? 'On' : 'Off'}
             </span>
-            <span className="rounded-full bg-helm-50 px-2 py-0.5 text-[11px] font-medium text-helm-400">
-              {scenario.folder}
-            </span>
           </div>
           <Link
             to={`/scenarios/${scenario.id}`}

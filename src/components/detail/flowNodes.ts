@@ -30,6 +30,43 @@ export interface FlowNodeDetail {
 const EMPTY = 'Run this to see the result.'
 const NOT_RUN = 'This step did not run.'
 
+export function pickupFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+  const summary = execution.summary ?? ''
+  if (summary.startsWith('Stopped.')) return { current: 2, stopped: true }
+  if (summary.includes('Outgoing or Direct')) return { current: 3, stopped: true }
+  if (
+    summary.includes('purchase order email') ||
+    summary.includes('client sales email') ||
+    summary.includes('client order email')
+  ) {
+    return { current: 3, stopped: true }
+  }
+  if (
+    summary.includes('PO number') ||
+    summary.includes('bill of lading') ||
+    summary.includes('warehouse') ||
+    summary.includes('pick up address') ||
+    summary.includes('pick up instructions') ||
+    summary.includes('licensee account')
+  ) {
+    return { current: 4, stopped: true }
+  }
+  if (execution.status === 'error') return { current: 1, stopped: true }
+  if (execution.status === 'incomplete') return { current: 4, stopped: true }
+  return { current: 6 }
+}
+
+export function poReceivedFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+  const summary = execution.summary ?? ''
+  if (summary.startsWith('Stopped.')) return { current: 2, stopped: true }
+  if (summary.includes('Outgoing or Direct')) return { current: 3, stopped: true }
+  if (summary.includes('purchase order file')) return { current: 4, stopped: true }
+  if (summary.includes('no email address')) return { current: 5, stopped: true }
+  if (execution.status === 'error') return { current: 1, stopped: true }
+  if (execution.status === 'incomplete') return { current: 4, stopped: true }
+  return { current: 6 }
+}
+
 export function flowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
   const summary = execution.summary ?? ''
   if (summary.startsWith('Stopped:')) return { current: 2, stopped: true }
@@ -43,6 +80,15 @@ function firstEmail(raw?: string) {
   const text = (raw ?? '').trim().toLowerCase()
   const match = EMAIL_PATTERN.exec(text)
   return match?.[1] ?? ''
+}
+
+function receivedRecipients(order?: OrderSnapshot) {
+  if ((order?.orderType || '') === 'Outgoing') {
+    const email = firstEmail(order?.purchaseEmail)
+    return email ? [email] : []
+  }
+  if ((order?.orderType || '') === 'Direct') return recipients(order)
+  return []
 }
 
 function recipients(order?: OrderSnapshot) {
@@ -398,5 +444,184 @@ export function warehouseNodeDetail(index: number, execution: Execution | null):
   if (stopped) chosen.notice = stopped
   return chosen
 }
+
+export function poReceivedNodeDetail(
+  index: number,
+  execution: Execution | null,
+  mailMode: 'log' | 'ses' | null,
+  boardName: string,
+  boardId: string,
+): FlowNodeDetail {
+  const order = execution?.order
+  const outcome = execution ? poReceivedFlowOutcome(execution) : null
+  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
+  const summary = execution?.summary ?? ''
+  const found = receivedRecipients(order)
+
+  if (index === 0) {
+    return {
+      settings: [...mondayBoard(boardName, boardId), { label: 'Watched column', value: 'Client Status' }],
+      input: execution ? [{ label: 'Source', value: order?.source || 'monday' }] : [{ label: 'Value', value: EMPTY }],
+      output: execution ? [{ label: 'Order', value: order?.name || 'An order changed' }] : [{ label: 'Value', value: EMPTY }],
+      notice: null,
+    }
+  }
+  if (index === 1) {
+    return {
+      settings: [...mondayBoard(boardName, boardId)],
+      input: execution ? [{ label: 'Pulse ID', value: order?.pulseId || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [
+            { label: 'Name', value: order?.name || '—' },
+            { label: 'Client Status', value: order?.clientStatus || '—' },
+            { label: 'Order', value: order?.orderType || '—' },
+            { label: 'PO Number', value: order?.poNumber || '—' },
+          ],
+      notice: stoppedHere ? { tone: 'error', text: friendlyText(summary || 'The order could not be opened.') } : null,
+    }
+  }
+  if (index === 2) {
+    return {
+      settings: [{ label: 'Continues when', value: 'Client Status is Received' }],
+      input: execution ? [{ label: 'Client Status', value: order?.clientStatus || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Passed', value: order?.clientStatus === 'Received' ? 'Yes' : 'No' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  if (index === 3) {
+    return {
+      settings: [
+        { label: 'Outgoing', value: 'Purchase Order Email' },
+        { label: 'Direct', value: 'Client email addresses' },
+      ],
+      input: execution ? [{ label: 'Order', value: order?.orderType || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Recipients', value: found.length ? found.join(', ') : 'No address' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  if (index === 4) {
+    return {
+      settings: [{ label: 'Attachment', value: 'Purchase order file' }],
+      input: execution ? [{ label: 'Files', value: fileNames(order) }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Attachment', value: fileNames(order) }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  const email = execution?.emails?.[0]
+  const logged = email?.delivery === 'logged' || (ran && mailMode === 'log' && !email)
+  return {
+    settings: [{ label: 'From', value: 'orders@helmsmanimports.com' }],
+    input: execution ? [{ label: 'To', value: found.join(', ') || '—' }] : [{ label: 'Value', value: EMPTY }],
+    output: !ran
+      ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+      : [{ label: 'Email', value: logged ? 'Prepared. Nothing was sent.' : email?.subject || friendlyText(summary) }],
+    notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary || 'This order has no email address.') } : null,
+  }
+}
+
+export function pickupNodeDetail(
+  index: number,
+  execution: Execution | null,
+  mailMode: 'log' | 'ses' | null,
+  boardName: string,
+  boardId: string,
+): FlowNodeDetail {
+  const order = execution?.order
+  const outcome = execution ? pickupFlowOutcome(execution) : null
+  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
+  const summary = execution?.summary ?? ''
+  const outgoing = (order?.orderType || '') === 'Outgoing'
+  const direct = (order?.orderType || '') === 'Direct'
+  const purchase = firstEmail(order?.purchaseEmail)
+  const sales = firstEmail(order?.salesEmail)
+  const client = firstEmail(order?.orderEmail)
+  const recipients = outgoing ? (purchase ? [purchase] : []) : direct ? [client, sales].filter(Boolean) : []
+
+  if (index === 0) {
+    return {
+      settings: [...mondayBoard(boardName, boardId), { label: 'Watched column', value: 'Client Status' }],
+      input: execution ? [{ label: 'Source', value: order?.source || 'monday' }] : [{ label: 'Value', value: EMPTY }],
+      output: execution ? [{ label: 'Order', value: order?.name || 'An order changed' }] : [{ label: 'Value', value: EMPTY }],
+      notice: null,
+    }
+  }
+  if (index === 1) {
+    return {
+      settings: [...mondayBoard(boardName, boardId)],
+      input: execution ? [{ label: 'Pulse ID', value: order?.pulseId || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [
+            { label: 'Name', value: order?.name || '—' },
+            { label: 'Client Status', value: order?.clientStatus || '—' },
+            { label: 'Order', value: order?.orderType || '—' },
+            { label: 'PO Number', value: order?.poNumber || '—' },
+          ],
+      notice: stoppedHere ? { tone: 'error', text: friendlyText(summary || 'The order could not be opened.') } : null,
+    }
+  }
+  if (index === 2) {
+    return {
+      settings: [{ label: 'Continues when', value: 'Client Status is Staged' }],
+      input: execution ? [{ label: 'Client Status', value: order?.clientStatus || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Passed', value: order?.clientStatus === 'Staged' ? 'Yes' : 'No' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  if (index === 3) {
+    return {
+      settings: [
+        { label: 'Outgoing', value: 'Purchase Order Email' },
+        { label: 'Direct', value: 'Client email addresses' },
+      ],
+      input: execution ? [{ label: 'Order', value: order?.orderType || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Recipients', value: recipients.length ? recipients.join(', ') : 'No address' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  if (index === 4) {
+    return {
+      settings: [
+        { label: 'Outgoing', value: 'Warehouse, address, and instructions' },
+        { label: 'Direct', value: 'Licensee account' },
+      ],
+      input: execution ? [{ label: 'PO Number', value: order?.poNumber || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : outgoing
+          ? [
+              { label: 'Warehouse', value: order?.warehouseName || '—' },
+              { label: 'Pick up address', value: order?.pickupAddress || '—' },
+              { label: 'Pick up instructions', value: order?.pickupInstructions || '—' },
+            ]
+          : [{ label: 'Licensee', value: order?.licenseeName || '—' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  const sent = execution?.emails?.[0]
+  const logged = sent?.delivery === 'logged' || (ran && mailMode === 'log' && !sent)
+  return {
+    settings: [{ label: 'From', value: 'orders@helmsmanimports.com' }],
+    input: execution ? [{ label: 'To', value: recipients.join(', ') || '—' }] : [{ label: 'Value', value: EMPTY }],
+    output: !ran
+      ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+      : [{ label: 'Email', value: logged ? 'Prepared. Nothing was sent.' : sent?.subject || friendlyText(summary) }],
+    notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary || 'This order has no email address.') } : null,
+  }
+}
+
 
 

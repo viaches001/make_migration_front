@@ -12,21 +12,15 @@ const statuses: Array<{ id: 'all' | ScenarioStatus; label: string }> = [
 interface Props {
   query: string
   status: 'all' | ScenarioStatus
-  folder: string
-  folders: string[]
   onQueryChange: (value: string) => void
   onStatusChange: (value: 'all' | ScenarioStatus) => void
-  onFolderChange: (value: string) => void
 }
 
 export function ScenarioFilters({
   query,
   status,
-  folder,
-  folders,
   onQueryChange,
   onStatusChange,
-  onFolderChange,
 }: Props) {
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -58,19 +52,6 @@ export function ScenarioFilters({
             </button>
           ))}
         </div>
-
-        <select
-          value={folder}
-          onChange={(e) => onFolderChange(e.target.value)}
-          className="rounded-xl border border-helm-100 bg-white px-3 py-2 text-xs font-semibold text-helm-600 outline-none"
-        >
-          <option value="all">All</option>
-          {folders.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
       </div>
     </div>
   )

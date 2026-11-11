@@ -10,7 +10,6 @@ export function ScenariosPage() {
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<'all' | ScenarioStatus>('all')
-  const [folder, setFolder] = useState('all')
 
   useEffect(() => {
     let cancelled = false
@@ -37,17 +36,11 @@ export function ScenariosPage() {
 
   const list = Array.isArray(items) ? items : []
 
-  const folders = useMemo(
-    () => [...new Set(list.map((s) => s.folder))].sort(),
-    [list],
-  )
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return list
       .filter((s) => {
         if (status !== 'all' && s.status !== status) return false
-        if (folder !== 'all' && s.folder !== folder) return false
         if (!q) return true
         return (
           s.name.toLowerCase().includes(q) ||
@@ -56,7 +49,24 @@ export function ScenariosPage() {
         )
       })
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [list, query, status, folder])
+  }, [list, query, status])
+
+  const groups = useMemo(() => {
+    const order = ['Inventory', 'Outgoing orders']
+    const names = [...new Set(filtered.map((scenario) => scenario.folder))]
+    names.sort((left, right) => {
+      const leftIndex = order.indexOf(left)
+      const rightIndex = order.indexOf(right)
+      if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right)
+      if (leftIndex === -1) return 1
+      if (rightIndex === -1) return -1
+      return leftIndex - rightIndex
+    })
+    return names.map((name) => ({
+      name,
+      scenarios: filtered.filter((scenario) => scenario.folder === name),
+    }))
+  }, [filtered])
 
   async function handleToggle(id: string) {
     const current = items.find((scenario) => scenario.id === id)
@@ -87,11 +97,8 @@ export function ScenariosPage() {
       <ScenarioFilters
         query={query}
         status={status}
-        folder={folder}
-        folders={folders}
         onQueryChange={setQuery}
         onStatusChange={setStatus}
-        onFolderChange={setFolder}
       />
 
       {error && (
@@ -104,17 +111,27 @@ export function ScenariosPage() {
         <p className="text-sm text-helm-400">Loading…</p>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((scenario) => (
-          <ScenarioCard
-            key={scenario.id}
-            scenario={scenario}
-            onToggle={(id) => {
-              handleToggle(id).catch((err: unknown) => {
-                setError(err instanceof Error ? err.message : 'Could not update the scenario')
-              })
-            }}
-          />
+      <div className="space-y-8">
+        {groups.map((group) => (
+          <section key={group.name} className="space-y-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-display text-lg font-semibold text-helm-700">{group.name}</h2>
+              <span className="text-xs text-helm-300">{group.scenarios.length}</span>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {group.scenarios.map((scenario) => (
+                <ScenarioCard
+                  key={scenario.id}
+                  scenario={scenario}
+                  onToggle={(id) => {
+                    handleToggle(id).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : 'Could not update the scenario')
+                    })
+                  }}
+                />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
 

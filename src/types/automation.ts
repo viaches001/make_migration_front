@@ -40,9 +40,17 @@ export interface OrderSnapshot {
   pulseId?: string
   name?: string
   clientStatus?: string
+  orderType?: string
   poNumber?: string
+  bolNumber?: string
   salesEmail?: string
   orderEmail?: string
+  purchaseEmail?: string
+  distributorEmail?: string
+  pickupAddress?: string
+  pickupInstructions?: string
+  warehouseName?: string
+  licenseeName?: string
   source?: string
   spreadsheetId?: string
   files?: Array<{ assetId?: string; fileName?: string; publicUrl?: string | null }>
