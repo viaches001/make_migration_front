@@ -291,8 +291,10 @@ export function nodeDetail(
             },
           ],
     notice:
-      ran && execution?.mode === 'test'
-        ? { tone: 'warning', text: 'Practice run. The email was not sent.' }
+      ran && execution?.mode === 'test' && email?.delivery === 'sent'
+        ? { tone: 'warning', text: 'Practice run. Sent only to the practice address.' }
+        : ran && execution?.mode === 'test'
+          ? { tone: 'warning', text: 'Practice run. The email was not sent.' }
         : ran && logged
           ? { tone: 'warning', text: 'The email was prepared here and was not sent.' }
             : stoppedHere
