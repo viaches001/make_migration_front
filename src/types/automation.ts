@@ -50,7 +50,10 @@ export interface OrderSnapshot {
   pickupAddress?: string
   pickupInstructions?: string
   warehouseName?: string
+  warehouseLabel?: string
   licenseeName?: string
+  shipmentStatus?: string
+  brandEmails?: string[]
   source?: string
   spreadsheetId?: string
   files?: Array<{ assetId?: string; fileName?: string; publicUrl?: string | null }>

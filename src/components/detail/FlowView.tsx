@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Check, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { Execution } from '@/types/automation'
 import { cn, friendlyText } from '@/lib/format'
-import { inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
+import { inboundNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
 
@@ -13,6 +13,48 @@ interface Step {
   detail: string
   stop?: string
 }
+
+const inboundSteps: Step[] = [
+  {
+    icon: Webhook,
+    kicker: 'Start',
+    title: 'Shipment status changes',
+    detail: 'Runs when Shipment Status changes on NEW Domestic.',
+  },
+  {
+    icon: MailSearch,
+    kicker: 'Read',
+    title: 'Read the shipment',
+    detail: 'Loads the warehouse, the brand, and the inbound report.',
+  },
+  {
+    icon: Filter,
+    kicker: 'Check',
+    title: 'Inbound Complete',
+    detail: 'Continues only when the shipment is marked Inbound Complete.',
+    stop: 'Another status stops here',
+  },
+  {
+    icon: Mail,
+    kicker: 'Brand',
+    title: 'Brand owners',
+    detail: 'Uses the Brand Manager and Brand Operations Manager addresses.',
+    stop: 'No brand email stops here',
+  },
+  {
+    icon: FileDown,
+    kicker: 'Report',
+    title: 'Inbound report',
+    detail: 'Attaches every inbound report and names the warehouse.',
+    stop: 'No report or warehouse stops here',
+  },
+  {
+    icon: Check,
+    kicker: 'Send',
+    title: 'Send the email',
+    detail: 'Sends from the logistics mailbox with the logistics signature.',
+  },
+]
 
 const pickupSteps: Step[] = [
   {
@@ -202,7 +244,7 @@ function stepState(index: number, progress: FlowProgress | null) {
 }
 
 interface Props {
-  variant?: 'brand' | 'received' | 'pickup' | 'inventory' | 'warehouse'
+  variant?: 'brand' | 'received' | 'pickup' | 'inbound' | 'inventory' | 'warehouse'
   progress?: FlowProgress | null
   execution?: Execution | null
   mailMode?: 'log' | 'ses' | null
@@ -231,7 +273,9 @@ export function FlowView({
           ? receivedSteps
           : variant === 'pickup'
             ? pickupSteps
-            : steps
+            : variant === 'inbound'
+              ? inboundSteps
+              : steps
   const live = variant === 'inventory' || variant === 'warehouse'
   const detail =
     selected == null
@@ -245,6 +289,8 @@ export function FlowView({
                 ? poReceivedNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
                 : variant === 'pickup'
                   ? pickupNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
+                  : variant === 'inbound'
+                    ? inboundNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
                   : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
           stepState(selected, progress),
           live,
@@ -263,7 +309,9 @@ export function FlowView({
               ? 'PO received steps'
               : variant === 'pickup'
                 ? 'Ready for pick up steps'
-                : 'Brand approval steps'
+                : variant === 'inbound'
+                  ? 'Inbound complete steps'
+                  : 'Brand approval steps'
       }
       className="relative min-h-[440px] min-w-0 flex-1 overflow-auto rounded-2xl border border-helm-100 bg-white"
     >

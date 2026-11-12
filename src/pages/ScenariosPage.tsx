@@ -52,7 +52,7 @@ export function ScenariosPage() {
   }, [list, query, status])
 
   const groups = useMemo(() => {
-    const order = ['Inventory', 'Outgoing orders']
+    const order = ['Inventory', 'Outgoing orders', 'Shipments']
     const names = [...new Set(filtered.map((scenario) => scenario.folder))]
     names.sort((left, right) => {
       const leftIndex = order.indexOf(left)

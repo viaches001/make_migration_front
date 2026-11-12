@@ -30,6 +30,16 @@ export interface FlowNodeDetail {
 const EMPTY = 'Run this to see the result.'
 const NOT_RUN = 'This step did not run.'
 
+export function inboundFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+  const summary = execution.summary ?? ''
+  if (summary.startsWith('Stopped.')) return { current: 2, stopped: true }
+  if (summary.includes('brand email')) return { current: 3, stopped: true }
+  if (summary.includes('warehouse') || summary.includes('inbound report')) return { current: 4, stopped: true }
+  if (execution.status === 'error') return { current: 1, stopped: true }
+  if (execution.status === 'incomplete') return { current: 4, stopped: true }
+  return { current: 6 }
+}
+
 export function pickupFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
   const summary = execution.summary ?? ''
   if (summary.startsWith('Stopped.')) return { current: 2, stopped: true }
@@ -620,6 +630,88 @@ export function pickupNodeDetail(
       ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
       : [{ label: 'Email', value: logged ? 'Prepared. Nothing was sent.' : sent?.subject || friendlyText(summary) }],
     notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary || 'This order has no email address.') } : null,
+  }
+}
+
+export function inboundNodeDetail(
+  index: number,
+  execution: Execution | null,
+  mailMode: 'log' | 'ses' | null,
+  boardName: string,
+  boardId: string,
+): FlowNodeDetail {
+  const order = execution?.order
+  const outcome = execution ? inboundFlowOutcome(execution) : null
+  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
+  const summary = execution?.summary ?? ''
+  const owners = (order?.brandEmails ?? []).filter(Boolean)
+  const report = (order?.files ?? []).map((file) => file.fileName).filter(Boolean).join(', ')
+
+  if (index === 0) {
+    return {
+      settings: [...mondayBoard(boardName, boardId), { label: 'Watched column', value: 'Shipment Status' }],
+      input: execution ? [{ label: 'Source', value: order?.source || 'monday' }] : [{ label: 'Value', value: EMPTY }],
+      output: execution ? [{ label: 'Shipment', value: order?.name || 'A shipment changed' }] : [{ label: 'Value', value: EMPTY }],
+      notice: null,
+    }
+  }
+  if (index === 1) {
+    return {
+      settings: [...mondayBoard(boardName, boardId)],
+      input: execution ? [{ label: 'Pulse ID', value: order?.pulseId || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [
+            { label: 'Shipment Status', value: order?.shipmentStatus || '—' },
+            { label: 'Warehouse', value: order?.warehouseName || order?.warehouseLabel || '—' },
+            { label: 'Brand emails', value: owners.length ? String(owners.length) : 'None' },
+          ],
+      notice: stoppedHere ? { tone: 'error', text: friendlyText(summary || 'The shipment could not be opened.') } : null,
+    }
+  }
+  if (index === 2) {
+    return {
+      settings: [{ label: 'Continues when', value: 'Shipment Status is Inbound Complete' }],
+      input: execution ? [{ label: 'Shipment Status', value: order?.shipmentStatus || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Passed', value: order?.shipmentStatus === 'Inbound Complete' ? 'Yes' : 'No' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  if (index === 3) {
+    return {
+      settings: [
+        { label: 'Brand Manager', value: 'Included' },
+        { label: 'Brand Operations Manager', value: 'Included' },
+      ],
+      input: execution ? [{ label: 'Addresses', value: owners.join(', ') || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Recipients', value: owners.join(', ') || 'No address' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  if (index === 4) {
+    return {
+      settings: [{ label: 'Attachment', value: 'Inbound Report' }],
+      input: execution ? [{ label: 'Warehouse', value: order?.warehouseName || '—' }] : [{ label: 'Value', value: EMPTY }],
+      output: !ran
+        ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+        : [{ label: 'Report', value: report || 'No file' }],
+      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+    }
+  }
+  const sent = execution?.emails?.[0]
+  const logged = sent?.delivery === 'logged' || (ran && mailMode === 'log' && !sent)
+  return {
+    settings: [{ label: 'From', value: 'logistics@helmsmanimports.com' }],
+    input: execution ? [{ label: 'To', value: owners.join(', ') || '—' }] : [{ label: 'Value', value: EMPTY }],
+    output: !ran
+      ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+      : [{ label: 'Email', value: logged ? 'Prepared. Nothing was sent.' : sent?.subject || friendlyText(summary) }],
+    notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary || 'This shipment has no inbound report.') } : null,
   }
 }
 

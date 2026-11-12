@@ -17,7 +17,7 @@ import type { Execution, Scenario, ScenarioStatus } from '@/types/automation'
 import { CompareView } from '@/components/detail/CompareView'
 import { DetailTabs, type DetailTab } from '@/components/detail/DetailTabs'
 import { FlowView } from '@/components/detail/FlowView'
-import { flowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
+import { flowOutcome, inboundFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
@@ -104,6 +104,7 @@ export function ScenarioDetailPage() {
     id === 'sc-inventory-sync-fdl' || id === 'sc-inventory-sync-hanover' || id === 'sc-inventory-sync-nl'
   const receivedScenario = id === 'sc-po-received-email'
   const pickupScenario = id === 'sc-ready-for-pickup-email'
+  const inboundScenario = id === 'sc-inbound-complete-email'
   const showCompare = (inventoryScenario || warehouseScenario) && mode === 'production'
   const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
   const outcomeFor = inventoryScenario || warehouseScenario
@@ -112,7 +113,9 @@ export function ScenarioDetailPage() {
       ? poReceivedFlowOutcome
       : pickupScenario
         ? pickupFlowOutcome
-        : flowOutcome
+        : inboundScenario
+          ? inboundFlowOutcome
+          : flowOutcome
 
   async function followRun(first: { execution: Execution }) {
     let body = first
@@ -127,7 +130,9 @@ export function ScenarioDetailPage() {
             ? poReceivedFlowOutcome(body.execution)
             : pickupScenario
               ? pickupFlowOutcome(body.execution)
-              : { current: 0 },
+              : inboundScenario
+                ? inboundFlowOutcome(body.execution)
+                : { current: 0 },
       )
       setProgressNote(friendlyText(body.execution.summary ?? 'Working.'))
       body = await continueExecution(id, body.execution.id)
@@ -304,7 +309,9 @@ export function ScenarioDetailPage() {
                     ? 'received'
                     : pickupScenario
                       ? 'pickup'
-                      : 'brand'
+                      : inboundScenario
+                        ? 'inbound'
+                        : 'brand'
             }
             progress={
               running || flowProgress
