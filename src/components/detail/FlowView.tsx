@@ -38,7 +38,7 @@ const inboundSteps: Step[] = [
     icon: Mail,
     kicker: 'Brand',
     title: 'Brand owners',
-    detail: 'Uses the Brand Manager and Brand Operations Manager addresses.',
+    detail: 'Uses the Ops Manager address, plus the brand’s manager addresses when they are filled in.',
     stop: 'No brand email stops here',
   },
   {

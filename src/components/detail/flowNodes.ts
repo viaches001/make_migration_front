@@ -685,8 +685,9 @@ export function inboundNodeDetail(
   if (index === 3) {
     return {
       settings: [
-        { label: 'Brand Manager', value: 'Included' },
-        { label: 'Brand Operations Manager', value: 'Included' },
+        { label: 'Ops Manager', value: 'Included' },
+        { label: 'Brand Manager', value: 'Included when filled in' },
+        { label: 'Brand Operations Manager', value: 'Included when filled in' },
       ],
       input: execution ? [{ label: 'Addresses', value: owners.join(', ') || '—' }] : [{ label: 'Value', value: EMPTY }],
       output: !ran
