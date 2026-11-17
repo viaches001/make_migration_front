@@ -353,7 +353,11 @@ export function FlowView({
                       {state === 'done' ? <Check className="h-4 w-4" /> : <step.icon className="h-4 w-4" />}
                     </span>
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-helm-300">
-                      {state === 'active' ? 'Running' : step.kicker}
+                      {state === 'active'
+                        ? execution?.status === 'listening'
+                          ? 'Listening'
+                          : 'Running'
+                        : step.kicker}
                     </span>
                   </div>
                   <h3 className="font-display text-sm font-semibold text-helm-700">{step.title}</h3>

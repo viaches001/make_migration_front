@@ -43,8 +43,15 @@ export function setScenarioStatus(id: string, status: ScenarioStatus) {
   })
 }
 
-export function fetchHistory(id: string) {
-  return request<{ executions: Execution[] }>(`/api/scenarios/${id}/history`)
+/** Light rows, newest first. Pass the oldest shown startedAt as `before` for the next page. */
+export function fetchHistory(id: string, before?: string) {
+  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  return request<{ executions: Execution[]; limit: number }>(`/api/scenarios/${id}/history${query}`)
+}
+
+/** One run with everything the flow view needs. Lists only carry light rows. */
+export function fetchExecution(scenarioId: string, executionId: string) {
+  return request<{ execution: Execution }>(`/api/scenarios/${scenarioId}/executions/${executionId}`)
 }
 
 export function fetchIncomplete(id: string) {
@@ -92,10 +99,10 @@ export function fetchInventoryCompare(scenarioId?: string, refresh = false) {
   return request<InventoryCompare>(`/api/inventory/compare${query ? `?${query}` : ''}`)
 }
 
-export function runScenario(id: string, body: unknown = {}) {
+export function runScenario(id: string, mode: RunMode, body: Record<string, unknown> = {}) {
   return request<{ execution: Execution }>(`/api/scenarios/${id}/run`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, mode }),
   })
 }
 
@@ -106,10 +113,10 @@ export function continueExecution(scenarioId: string, executionId: string) {
   )
 }
 
-export function retryExecution(scenarioId: string, executionId: string) {
+export function retryExecution(scenarioId: string, executionId: string, mode: RunMode) {
   return request<{ execution: Execution }>(
     `/api/scenarios/${scenarioId}/executions/${executionId}/retry`,
-    { method: 'POST' },
+    { method: 'POST', body: JSON.stringify({ mode }) },
   )
 }
 
@@ -120,18 +127,8 @@ export function ignoreExecution(scenarioId: string, executionId: string) {
   )
 }
 
+// Practice mode belongs to this page only. Schedules and Monday events always run live.
 export type RunMode = 'test' | 'production'
-
-export function fetchRuntime() {
-  return request<{ mode: RunMode }>('/api/runtime')
-}
-
-export function setRuntimeMode(mode: RunMode) {
-  return request<{ mode: RunMode }>('/api/runtime', {
-    method: 'PATCH',
-    body: JSON.stringify({ mode }),
-  })
-}
 
 export function fetchHealth() {
   return request<{ ok: boolean; mailMode: 'log' | 'ses'; monday: boolean; database: boolean }>('/api/health')

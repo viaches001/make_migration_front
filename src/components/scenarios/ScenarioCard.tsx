@@ -5,7 +5,8 @@ import { cn, formatDateTime } from '@/lib/format'
 
 interface Props {
   scenario: Scenario
-  onToggle: (id: string) => void
+  /** Left out in practice mode, which has no on/off switch. */
+  onToggle?: (id: string) => void
 }
 
 export function ScenarioCard({ scenario, onToggle }: Props) {
@@ -41,23 +42,25 @@ export function ScenarioCard({ scenario, onToggle }: Props) {
           <p className="mt-1 line-clamp-2 text-sm text-helm-400">{scenario.description}</p>
         </div>
 
-        <button
-          type="button"
-          role="switch"
-          aria-checked={isOn}
-          onClick={() => onToggle(scenario.id)}
-          className={cn(
-            'relative h-7 w-12 shrink-0 rounded-full transition',
-            isOn ? 'bg-helm-500' : 'bg-slate-300',
-          )}
-        >
-          <span
+        {onToggle && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isOn}
+            onClick={() => onToggle(scenario.id)}
             className={cn(
-              'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition',
-              isOn ? 'left-5' : 'left-0.5',
+              'relative h-7 w-12 shrink-0 rounded-full transition',
+              isOn ? 'bg-helm-500' : 'bg-slate-300',
             )}
-          />
-        </button>
+          >
+            <span
+              className={cn(
+                'absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition',
+                isOn ? 'left-5' : 'left-0.5',
+              )}
+            />
+          </button>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-helm-50 pt-4 text-xs text-helm-400">

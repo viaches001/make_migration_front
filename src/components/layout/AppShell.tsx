@@ -1,33 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { fetchRuntime, setRuntimeMode, type RunMode } from '@/lib/api'
+import type { RunMode } from '@/lib/api'
 import { cn } from '@/lib/format'
 
 export function AppShell() {
   const { pathname } = useLocation()
   const isDetail = pathname.startsWith('/scenarios/')
-  const [mode, setMode] = useState<RunMode>('test')
-
-  useEffect(() => {
-    let cancelled = false
-    fetchRuntime()
-      .then((body) => {
-        if (!cancelled) setMode(body.mode)
-      })
-      .catch(() => {
-        if (!cancelled) setMode('test')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // Every page load starts live. Practice only changes runs started from this page.
+  const [mode, setMode] = useState<RunMode>('production')
 
   function chooseMode(next: RunMode) {
-    const previous = mode
     setMode(next)
-    setRuntimeMode(next)
-      .then((body) => setMode(body.mode))
-      .catch(() => setMode(previous))
   }
 
   return (

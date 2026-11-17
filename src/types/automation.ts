@@ -1,6 +1,6 @@
 export type ScenarioStatus = 'on' | 'off' | 'error'
 
-export type ExecutionStatus = 'success' | 'error' | 'warning' | 'running' | 'pending' | 'incomplete'
+export type ExecutionStatus = 'success' | 'error' | 'warning' | 'running' | 'pending' | 'incomplete' | 'listening'
 
 export interface Scenario {
   id: string
@@ -99,8 +99,9 @@ export interface InventoryRun {
 export interface LoggedEmail {
   delivery: 'logged' | 'sent'
   to: string[]
+  redirectedFrom?: string[]
   subject: string
-  fileName: string
+  fileName?: string
   html?: string
 }
 

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
 import {
   continueExecution,
+  fetchExecution,
   fetchHealth,
   fetchHistory,
   fetchIncomplete,
@@ -30,6 +31,9 @@ export function ScenarioDetailPage() {
   const [missing, setMissing] = useState(false)
   const [tab, setTab] = useState<DetailTab>('history')
   const [history, setHistory] = useState<Execution[]>([])
+  const [hasMoreHistory, setHasMoreHistory] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [latestFull, setLatestFull] = useState<Execution | null>(null)
   const [incomplete, setIncomplete] = useState<Execution[]>([])
   const [activeExecution, setActiveExecution] = useState<Execution | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -41,6 +45,8 @@ export function ScenarioDetailPage() {
   const [flowProgress, setFlowProgress] = useState<ReturnType<typeof flowOutcome> | null>(null)
   const [flowExecution, setFlowExecution] = useState<Execution | null>(null)
   const [selectedNode, setSelectedNode] = useState<number | null>(null)
+  const watchId = useRef<string | null>(null)
+  const practiceAddress = 'viacheslavbereslavets@gmail.com'
 
   const load = useCallback(async () => {
     const [scenarioBody, historyBody, incompleteBody] = await Promise.all([
@@ -50,8 +56,24 @@ export function ScenarioDetailPage() {
     ])
     setScenario(scenarioBody.scenario)
     setHistory(historyBody.executions)
+    setHasMoreHistory(historyBody.executions.length >= historyBody.limit)
     setIncomplete(incompleteBody.executions)
   }, [id])
+
+  async function loadOlder() {
+    const oldest = history[history.length - 1]
+    if (!oldest?.startedAt) return
+    setLoadingMore(true)
+    try {
+      const body = await fetchHistory(id, oldest.startedAt)
+      setHistory((rows) => [...rows, ...body.executions.filter((row) => !rows.some((have) => have.id === row.id))])
+      setHasMoreHistory(body.executions.length >= body.limit)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not load older runs')
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -145,6 +167,79 @@ export function ScenarioDetailPage() {
     showToast(friendlyText(body.execution.summary ?? 'Finished'))
   }
 
+  const watchInboundListener = useCallback(
+    async (execution: Execution) => {
+      if (watchId.current === execution.id) return
+      watchId.current = execution.id
+      setRunning(true)
+      setError(null)
+      setTab('flow')
+      setPendingRun(null)
+      setFlowExecution(execution)
+      setFlowProgress({ current: 0 })
+      setProgressNote(
+        `Listening for a Monday inbound complete event. The email goes to ${practiceAddress}, then listening stops.`,
+      )
+      try {
+        let current = execution
+        while (current.status === 'listening') {
+          await new Promise((resolve) => window.setTimeout(resolve, 2000))
+          if (watchId.current !== execution.id) return
+          const found = (await fetchExecution(id, execution.id)).execution
+          if (watchId.current !== execution.id) return
+          current = found
+          setFlowExecution(found)
+          if (found.status !== 'listening') setFlowProgress(inboundFlowOutcome(found))
+        }
+        if (watchId.current !== execution.id) return
+        setProgressNote(null)
+        await load()
+        showToast(friendlyText(current.summary ?? 'Finished'))
+      } catch (err: unknown) {
+        if (watchId.current !== execution.id) return
+        setError(err instanceof Error ? err.message : 'Could not keep listening')
+        setProgressNote(null)
+      } finally {
+        if (watchId.current === execution.id || watchId.current === null) {
+          if (watchId.current === execution.id) watchId.current = null
+          setRunning(false)
+        }
+      }
+    },
+    [id, load],
+  )
+
+  useEffect(() => {
+    return () => {
+      watchId.current = null
+    }
+  }, [id, mode])
+
+  useEffect(() => {
+    if (!inboundScenario || mode !== 'test') return
+    const open = history.find((row) => row.status === 'listening')
+    if (!open) return
+    void watchInboundListener(open)
+  }, [history, inboundScenario, mode, watchInboundListener])
+
+  // Lists carry light rows only. The flow view loads the newest run in full, and only when it is open.
+  const newest = history.find((row) => row.status !== 'pending') ?? null
+  const newestKey = newest ? `${newest.id}:${newest.status}:${newest.finishedAt ?? ''}` : ''
+  useEffect(() => {
+    if (activeTab !== 'flow' || flowExecution || !newest) return
+    let cancelled = false
+    fetchExecution(id, newest.id)
+      .then((body) => {
+        if (!cancelled) setLatestFull(body.execution)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+    // newestKey stands in for the newest row, so a finished or changed run is fetched again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, flowExecution, id, newestKey])
+
   async function handleRunSample() {
     setRunning(true)
     setError(null)
@@ -154,7 +249,13 @@ export function ScenarioDetailPage() {
     setFlowExecution(null)
     setFlowProgress({ current: 0 })
     try {
-      await followRun(await runScenario(id))
+      const started = await runScenario(id, mode)
+      if (inboundScenario && mode === 'test' && started.execution.status === 'listening') {
+        setPendingRun(null)
+        await watchInboundListener(started.execution)
+        return
+      }
+      await followRun(started)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Sample run failed')
       setProgressNote(null)
@@ -163,7 +264,7 @@ export function ScenarioDetailPage() {
       await load().catch(() => undefined)
     } finally {
       setPendingRun(null)
-      setRunning(false)
+      if (!(inboundScenario && mode === 'test' && watchId.current)) setRunning(false)
     }
   }
 
@@ -171,7 +272,7 @@ export function ScenarioDetailPage() {
     beginPending()
     setError(null)
     try {
-      await followRun(await retryExecution(id, execId))
+      await followRun(await retryExecution(id, execId, mode))
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Retry failed')
       setProgressNote(null)
@@ -205,7 +306,9 @@ export function ScenarioDetailPage() {
   }
 
   const status = scenario.status
-  const shownExecution = flowExecution ?? history.find((row) => row.status !== 'pending') ?? null
+  const latestRow = history.find((row) => row.status !== 'pending') ?? null
+  const shownExecution =
+    flowExecution ?? (latestFull && latestFull.id === latestRow?.id ? latestFull : latestRow)
   const historyRows = pendingRun
     ? [pendingRun, ...history.filter((row) => row.status !== 'running')]
     : history
@@ -244,32 +347,34 @@ export function ScenarioDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={status === 'on'}
-              onClick={() => {
-                handleToggle().catch((err: unknown) => {
-                  setError(err instanceof Error ? err.message : 'Could not update status')
-                })
-              }}
-              className="flex items-center gap-2 rounded-xl border border-helm-100 px-3 py-2 text-sm font-semibold text-helm-600"
-            >
-              <span
-                className={cn(
-                  'relative h-6 w-11 rounded-full transition',
-                  status === 'on' ? 'bg-helm-500' : 'bg-slate-300',
-                )}
+            {mode === 'production' && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={status === 'on'}
+                onClick={() => {
+                  handleToggle().catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : 'Could not update status')
+                  })
+                }}
+                className="flex items-center gap-2 rounded-xl border border-helm-100 px-3 py-2 text-sm font-semibold text-helm-600"
               >
                 <span
                   className={cn(
-                    'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition',
-                    status === 'on' ? 'left-[22px]' : 'left-0.5',
+                    'relative h-6 w-11 rounded-full transition',
+                    status === 'on' ? 'bg-helm-500' : 'bg-slate-300',
                   )}
-                />
-              </span>
-              {status === 'on' ? 'On' : 'Off'}
-            </button>
+                >
+                  <span
+                    className={cn(
+                      'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition',
+                      status === 'on' ? 'left-[22px]' : 'left-0.5',
+                    )}
+                  />
+                </span>
+                {status === 'on' ? 'On' : 'Off'}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleRunSample}
@@ -277,7 +382,11 @@ export function ScenarioDetailPage() {
               className="inline-flex items-center gap-1.5 rounded-xl bg-helm-600 px-4 py-2 text-sm font-semibold text-white hover:bg-helm-500 disabled:opacity-60"
             >
               <Play className="h-4 w-4" />
-              {running ? 'Running…' : 'Run'}
+              {running && flowExecution?.status === 'listening'
+                ? 'Listening…'
+                : running
+                  ? mode === 'test' ? 'Test running…' : 'Running…'
+                  : mode === 'test' ? 'Test run' : 'Run'}
             </button>
           </div>
         </div>
@@ -295,7 +404,13 @@ export function ScenarioDetailPage() {
 
       <div className="flex min-h-0 flex-1 flex-col overflow-auto px-4 py-4 sm:px-6">
         {activeTab === 'history' && (
-          <HistoryTable rows={historyRows} onAnalyze={setActiveExecution} />
+          <HistoryTable
+            rows={historyRows}
+            onAnalyze={setActiveExecution}
+            hasMore={hasMoreHistory && !pendingRun}
+            loadingMore={loadingMore}
+            onLoadMore={() => void loadOlder()}
+          />
         )}
 
         {activeTab === 'flow' && (

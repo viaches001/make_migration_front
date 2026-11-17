@@ -5,6 +5,9 @@ import { cn, formatDateTime, formatDuration, friendlyText } from '@/lib/format'
 interface Props {
   rows: Execution[]
   onAnalyze: (execution: Execution) => void
+  hasMore?: boolean
+  loadingMore?: boolean
+  onLoadMore?: () => void
 }
 
 const statusStyles: Record<string, string> = {
@@ -13,10 +16,12 @@ const statusStyles: Record<string, string> = {
   warning: 'bg-amber-50 text-amber-700',
   running: 'bg-sky-50 text-sky-700',
   pending: 'bg-sky-50 text-sky-700',
+  listening: 'bg-sky-50 text-sky-700',
   incomplete: 'bg-orange-50 text-orange-700',
 }
 
 function statusLabel(status: string) {
+  if (status === 'listening') return 'Listening'
   if (status === 'running' || status === 'pending') return 'Working'
   if (status === 'success') return 'Done'
   if (status === 'error') return 'Problem'
@@ -26,7 +31,7 @@ function statusLabel(status: string) {
 }
 
 function isPending(status: string) {
-  return status === 'running' || status === 'pending'
+  return status === 'running' || status === 'pending' || status === 'listening'
 }
 
 function runMode(row: Execution) {
@@ -36,7 +41,7 @@ function runMode(row: Execution) {
   return null
 }
 
-export function HistoryTable({ rows, onAnalyze }: Props) {
+export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = false, onLoadMore }: Props) {
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-helm-200 bg-white px-6 py-14 text-center text-sm text-helm-400">
@@ -116,6 +121,18 @@ export function HistoryTable({ rows, onAnalyze }: Props) {
           })}
         </tbody>
       </table>
+      {hasMore && onLoadMore && (
+        <div className="border-t border-helm-50 px-4 py-3 text-center">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-helm-500 hover:bg-helm-50 disabled:opacity-60"
+          >
+            {loadingMore ? 'Loading…' : 'Show older runs'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

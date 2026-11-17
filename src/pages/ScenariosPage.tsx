@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchScenarios, setScenarioStatus } from '@/lib/api'
+import { useOutletContext } from 'react-router-dom'
+import { fetchScenarios, setScenarioStatus, type RunMode } from '@/lib/api'
 import type { Scenario, ScenarioStatus } from '@/types/automation'
 import { ScenarioCard } from '@/components/scenarios/ScenarioCard'
 import { ScenarioFilters } from '@/components/scenarios/ScenarioFilters'
 
 export function ScenariosPage() {
+  const { mode } = useOutletContext<{ mode: RunMode }>()
   const [items, setItems] = useState<Scenario[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -123,11 +125,15 @@ export function ScenariosPage() {
                 <ScenarioCard
                   key={scenario.id}
                   scenario={scenario}
-                  onToggle={(id) => {
-                    handleToggle(id).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : 'Could not update the scenario')
-                    })
-                  }}
+                  onToggle={
+                    mode === 'production'
+                      ? (id) => {
+                          handleToggle(id).catch((err: unknown) => {
+                            setError(err instanceof Error ? err.message : 'Could not update the scenario')
+                          })
+                        }
+                      : undefined
+                  }
                 />
               ))}
             </div>
