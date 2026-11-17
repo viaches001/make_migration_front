@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { ArrowRight, Check, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
-import type { Execution } from '@/types/automation'
+import type { EmailRecipients, Execution } from '@/types/automation'
+import { RecipientsEditor } from '@/components/detail/RecipientsEditor'
 import { cn, friendlyText } from '@/lib/format'
 import { inboundNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
@@ -45,14 +46,13 @@ const inboundSteps: Step[] = [
     icon: FileDown,
     kicker: 'Report',
     title: 'Inbound report',
-    detail: 'Attaches every inbound report and names the warehouse.',
-    stop: 'No report or warehouse stops here',
+    detail: 'Attaches every inbound report and names the warehouse. With no report, the email goes without one.',
   },
   {
     icon: Check,
     kicker: 'Send',
     title: 'Send the email',
-    detail: 'Sends from the logistics mailbox with the logistics signature.',
+    detail: 'Sends one email to the brand owners and the Ops Manager, from the logistics mailbox with the logistics signature.',
   },
 ]
 
@@ -252,6 +252,10 @@ interface Props {
   boardId?: string
   selected: number | null
   onSelect: (index: number | null) => void
+  recipients?: EmailRecipients
+  onSaveRecipients?: (next: EmailRecipients) => Promise<void>
+  /** The page's mode. The practice list only matters, and only shows, in practice. */
+  mode?: 'test' | 'production'
 }
 
 export function FlowView({
@@ -263,6 +267,9 @@ export function FlowView({
   boardId = '3633344780',
   selected,
   onSelect,
+  recipients,
+  onSaveRecipients,
+  mode = 'production',
 }: Props) {
   const activeSteps =
     variant === 'inventory'
@@ -413,6 +420,8 @@ export function FlowView({
       blurb={selected == null ? '' : activeSteps[selected]?.detail || ''}
       detail={detail}
       onClose={() => onSelect(null)}
+      recipients={mode === 'test' ? recipients : undefined}
+      onSaveRecipients={onSaveRecipients}
     />
     </div>
   )
@@ -433,11 +442,15 @@ function NodeInspector({
   blurb,
   detail,
   onClose,
+  recipients,
+  onSaveRecipients,
 }: {
   title: string
   blurb: string
   detail: ReturnType<typeof nodeDetail> | null
   onClose: () => void
+  recipients?: EmailRecipients
+  onSaveRecipients?: (next: EmailRecipients) => Promise<void>
 }) {
   return (
     <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-helm-100 bg-white xl:w-[520px]">
@@ -469,6 +482,16 @@ function NodeInspector({
               >
                 {friendlyText(detail.notice.text)}
               </p>
+            )}
+            {detail.about && detail.about.length > 0 && (
+              <div className="mb-4 border-b border-helm-50 pb-4">
+                <FieldList fields={detail.about} />
+              </div>
+            )}
+            {detail.editRecipients && recipients && onSaveRecipients && (
+              <div className="mb-4 border-b border-helm-50 pb-4">
+                <RecipientsEditor recipients={recipients} onSave={onSaveRecipients} />
+              </div>
             )}
             <FieldList fields={detail.output} />
           </div>

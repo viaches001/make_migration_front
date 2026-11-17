@@ -21,6 +21,10 @@ export interface FlowNotice {
 }
 
 export interface FlowNodeDetail {
+  /** How the step works. Shown even before anything has run. */
+  about?: FlowField[]
+  /** Show the practice and extra recipient lists, which can be edited. */
+  editRecipients?: boolean
   settings: FlowField[]
   input: FlowField[]
   output: FlowField[]
@@ -724,14 +728,34 @@ export function inboundNodeDetail(
   const sent = execution?.emails?.[0]
   const logged = sent?.delivery === 'logged' || (ran && mailMode === 'log' && !sent)
   const delivered = (sent?.to ?? []).filter(Boolean)
+  const meantFor = (sent?.redirectedFrom ?? []).filter(Boolean)
+  const attached = (sent?.fileName || report || '').trim()
+  const result: FlowField[] = [
+    { label: logged ? 'Would go to' : 'Sent to', value: delivered.join(', ') || owners.join(', ') || 'No address' },
+  ]
+  if (meantFor.length) {
+    result.push({ label: 'Practice run. In Live it goes to', value: meantFor.join(', ') })
+  }
+  result.push(
+    { label: 'Subject', value: sent?.subject || '—' },
+    { label: 'Attachment', value: attached || 'None' },
+    { label: 'Result', value: logged ? 'Prepared. Nothing was sent.' : friendlyText(summary) || 'Sent' },
+  )
   return {
+    about: [
+      {
+        label: 'Sends to',
+        value:
+          'The shipment’s Ops Manager, plus the Brand Manager and Brand Operations Manager of each linked brand when those are filled in. Duplicates are removed.',
+      },
+      { label: 'From', value: 'logistics@helmsmanimports.com' },
+    ],
+    editRecipients: true,
     settings: [{ label: 'From', value: 'logistics@helmsmanimports.com' }],
     input: execution
       ? [{ label: 'To', value: delivered.join(', ') || owners.join(', ') || '—' }]
       : [{ label: 'Value', value: EMPTY }],
-    output: !ran
-      ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
-      : [{ label: 'Email', value: logged ? 'Prepared. Nothing was sent.' : sent?.subject || friendlyText(summary) }],
+    output: !ran ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }] : result,
     notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
   }
 }

@@ -1,4 +1,4 @@
-import type { Execution, Scenario, ScenarioStatus } from '@/types/automation'
+import type { EmailRecipients, Execution, Scenario, ScenarioStatus } from '@/types/automation'
 
 const apiBase = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 
@@ -44,6 +44,13 @@ export function setScenarioStatus(id: string, status: ScenarioStatus) {
 }
 
 /** Light rows, newest first. Pass the oldest shown startedAt as `before` for the next page. */
+export function saveRecipients(id: string, recipients: EmailRecipients) {
+  return request<{ scenario: Scenario }>(`/api/scenarios/${id}/recipients`, {
+    method: 'PUT',
+    body: JSON.stringify(recipients),
+  })
+}
+
 export function fetchHistory(id: string, before?: string) {
   const query = before ? `?before=${encodeURIComponent(before)}` : ''
   return request<{ executions: Execution[]; limit: number }>(`/api/scenarios/${id}/history${query}`)

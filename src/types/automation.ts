@@ -2,6 +2,12 @@ export type ScenarioStatus = 'on' | 'off' | 'error'
 
 export type ExecutionStatus = 'success' | 'error' | 'warning' | 'running' | 'pending' | 'incomplete' | 'listening'
 
+/** Practice runs go to `practice`. Live emails also go to `extra`. */
+export interface EmailRecipients {
+  practice: string[]
+  extra: string[]
+}
+
 export interface Scenario {
   id: string
   name: string
@@ -12,6 +18,7 @@ export interface Scenario {
   triggerLabel: string
   boardId?: string
   boardName?: string
+  recipients?: EmailRecipients
   lastRunAt: string | null
   successRate: number
   operationsUsed: number

@@ -11,6 +11,7 @@ import {
   ignoreExecution,
   retryExecution,
   runScenario,
+  saveRecipients,
   setScenarioStatus,
   type RunMode,
 } from '@/lib/api'
@@ -29,7 +30,7 @@ export function ScenarioDetailPage() {
   const { mode } = useOutletContext<{ mode: RunMode }>()
   const [scenario, setScenario] = useState<Scenario | null>(null)
   const [missing, setMissing] = useState(false)
-  const [tab, setTab] = useState<DetailTab>('history')
+  const [tab, setTab] = useState<DetailTab>('flow')
   const [history, setHistory] = useState<Execution[]>([])
   const [hasMoreHistory, setHasMoreHistory] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -415,6 +416,12 @@ export function ScenarioDetailPage() {
 
         {activeTab === 'flow' && (
           <FlowView
+            mode={mode}
+            recipients={scenario.recipients}
+            onSaveRecipients={async (next) => {
+              const body = await saveRecipients(scenario.id, next)
+              setScenario(body.scenario)
+            }}
             variant={
               inventoryScenario
                 ? 'inventory'
