@@ -16,6 +16,7 @@ import {
   type RunMode,
 } from '@/lib/api'
 import type { Execution, Scenario, ScenarioStatus } from '@/types/automation'
+import { belongsToMode } from '@/lib/runMode'
 import { CompareView } from '@/components/detail/CompareView'
 import { DetailTabs, type DetailTab } from '@/components/detail/DetailTabs'
 import { FlowView } from '@/components/detail/FlowView'
@@ -47,27 +48,37 @@ export function ScenarioDetailPage() {
   const [flowExecution, setFlowExecution] = useState<Execution | null>(null)
   const [selectedNode, setSelectedNode] = useState<number | null>(null)
   const watchId = useRef<string | null>(null)
-  const practiceAddress = 'viacheslavbereslavets@gmail.com'
+  const practiceAddress = scenario?.recipients?.practice.join(', ') || 'the practice address'
 
+  // Runs and Needs attention show only the selected mode's runs.
   const load = useCallback(async () => {
     const [scenarioBody, historyBody, incompleteBody] = await Promise.all([
       fetchScenario(id),
-      fetchHistory(id),
-      fetchIncomplete(id),
+      fetchHistory(id, mode),
+      fetchIncomplete(id, mode),
     ])
     setScenario(scenarioBody.scenario)
-    setHistory(historyBody.executions)
+    setHistory(historyBody.executions.filter((row) => belongsToMode(row, mode)))
     setHasMoreHistory(historyBody.executions.length >= historyBody.limit)
-    setIncomplete(incompleteBody.executions)
-  }, [id])
+    setIncomplete(incompleteBody.executions.filter((row) => belongsToMode(row, mode)))
+  }, [id, mode])
+
+  // A finished run from the other mode should not stay on the Steps tab after switching.
+  useEffect(() => {
+    if (watchId.current) return
+    setFlowExecution(null)
+    setFlowProgress(null)
+    setLatestFull(null)
+  }, [mode])
 
   async function loadOlder() {
     const oldest = history[history.length - 1]
     if (!oldest?.startedAt) return
     setLoadingMore(true)
     try {
-      const body = await fetchHistory(id, oldest.startedAt)
-      setHistory((rows) => [...rows, ...body.executions.filter((row) => !rows.some((have) => have.id === row.id))])
+      const body = await fetchHistory(id, mode, oldest.startedAt)
+      const older = body.executions.filter((row) => belongsToMode(row, mode))
+      setHistory((rows) => [...rows, ...older.filter((row) => !rows.some((have) => have.id === row.id))])
       setHasMoreHistory(body.executions.length >= body.limit)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not load older runs')
@@ -207,7 +218,7 @@ export function ScenarioDetailPage() {
         }
       }
     },
-    [id, load],
+    [id, load, practiceAddress],
   )
 
   useEffect(() => {
@@ -335,9 +346,21 @@ export function ScenarioDetailPage() {
                 Last run {formatDateTime(scenario.lastRunAt)}
               </span>
             </div>
-            <h1 className="font-display text-xl font-semibold tracking-tight text-helm-700 sm:text-2xl">
-              {scenario.name}
-            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-display text-xl font-semibold tracking-tight text-helm-700 sm:text-2xl">
+                {scenario.name}
+              </h1>
+              {mode === 'production' && (
+                <span
+                  role="status"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700"
+                  title="Runs here email real clients and update Monday."
+                >
+                  <span className="h-2 w-2 rounded-full bg-red-500" aria-hidden="true" />
+                  You are in Live mode
+                </span>
+              )}
+            </div>
             {tab !== 'flow' && (
               <>
                 <p className="mt-0.5 max-w-4xl text-sm text-helm-400">

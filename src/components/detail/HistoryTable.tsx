@@ -1,4 +1,5 @@
 import { Sparkles } from 'lucide-react'
+import { runModeOf } from '@/lib/runMode'
 import type { Execution } from '@/types/automation'
 import { cn, formatDateTime, formatDuration, friendlyText } from '@/lib/format'
 
@@ -34,12 +35,6 @@ function isPending(status: string) {
   return status === 'running' || status === 'pending' || status === 'listening'
 }
 
-function runMode(row: Execution) {
-  if (row.mode === 'test' || row.mode === 'production') return row.mode
-  if (row.inventory?.mode === 'test' || row.inventory?.mode === 'production') return row.inventory.mode
-  if (row.summary?.startsWith('Test mode') || row.summary?.startsWith('Practice run')) return 'test'
-  return null
-}
 
 export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = false, onLoadMore }: Props) {
   if (rows.length === 0) {
@@ -65,7 +60,7 @@ export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = f
         </thead>
         <tbody>
           {rows.map((row) => {
-            const mode = runMode(row)
+            const mode = runModeOf(row)
             return (
             <tr key={row.id} className="border-t border-helm-50 hover:bg-helm-50/40">
               <td className="px-4 py-3">

@@ -51,9 +51,11 @@ export function saveRecipients(id: string, recipients: EmailRecipients) {
   })
 }
 
-export function fetchHistory(id: string, before?: string) {
-  const query = before ? `?before=${encodeURIComponent(before)}` : ''
-  return request<{ executions: Execution[]; limit: number }>(`/api/scenarios/${id}/history${query}`)
+/** Light rows of one mode, newest first. Pass the oldest shown startedAt as `before` for the next page. */
+export function fetchHistory(id: string, mode: RunMode, before?: string) {
+  const params = new URLSearchParams({ mode })
+  if (before) params.set('before', before)
+  return request<{ executions: Execution[]; limit: number }>(`/api/scenarios/${id}/history?${params.toString()}`)
 }
 
 /** One run with everything the flow view needs. Lists only carry light rows. */
@@ -61,8 +63,8 @@ export function fetchExecution(scenarioId: string, executionId: string) {
   return request<{ execution: Execution }>(`/api/scenarios/${scenarioId}/executions/${executionId}`)
 }
 
-export function fetchIncomplete(id: string) {
-  return request<{ executions: Execution[] }>(`/api/scenarios/${id}/incomplete`)
+export function fetchIncomplete(id: string, mode: RunMode) {
+  return request<{ executions: Execution[] }>(`/api/scenarios/${id}/incomplete?mode=${mode}`)
 }
 
 export interface CompareSource {
