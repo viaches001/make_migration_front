@@ -44,7 +44,18 @@ export function inboundFlowOutcome(execution: Pick<Execution, 'status' | 'summar
   return { current: 6 }
 }
 
+export function inboxFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+  const summary = execution.summary ?? ''
+  if (summary.startsWith('Stopped.')) return { current: 1, stopped: true }
+  if (execution.status === 'incomplete') return { current: 3, stopped: true }
+  if (execution.status === 'error') {
+    return { current: /mailbox|gmail|google/i.test(summary) ? 0 : 2, stopped: true }
+  }
+  return { current: 5 }
+}
+
 export function pickupFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+  if (execution.status === 'listening') return { current: 0 }
   const summary = execution.summary ?? ''
   if (summary.startsWith('Stopped.')) return { current: 2, stopped: true }
   if (summary.includes('Outgoing or Direct')) return { current: 3, stopped: true }
@@ -71,6 +82,7 @@ export function pickupFlowOutcome(execution: Pick<Execution, 'status' | 'summary
 }
 
 export function poReceivedFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+  if (execution.status === 'listening') return { current: 0 }
   const summary = execution.summary ?? ''
   if (summary.startsWith('Stopped.')) return { current: 2, stopped: true }
   if (summary.includes('Outgoing or Direct')) return { current: 3, stopped: true }
@@ -82,9 +94,12 @@ export function poReceivedFlowOutcome(execution: Pick<Execution, 'status' | 'sum
 }
 
 export function flowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+  if (execution.status === 'listening') return { current: 0 }
   const summary = execution.summary ?? ''
-  if (summary.startsWith('Stopped:')) return { current: 2, stopped: true }
-  if (execution.status === 'incomplete' && summary.includes('PO File')) return { current: 3, stopped: true }
+  if (summary.startsWith('Stopped:') || summary.startsWith('Stopped.')) return { current: 2, stopped: true }
+  if (execution.status === 'incomplete' && /PO File|purchase order file/i.test(summary)) {
+    return { current: 3, stopped: true }
+  }
   if (execution.status === 'incomplete') return { current: 4, stopped: true }
   if (execution.status === 'error') return { current: 1, stopped: true }
   return { current: 6 }
@@ -119,6 +134,37 @@ function fileNames(order?: OrderSnapshot) {
   return names.length > 0 ? names.join(', ') : 'No file'
 }
 
+/**
+ * The "Send the email" result: where it really went, and on a practice run where it would go in Live.
+ * `liveTo` is the run's own recipients, shown when nothing was sent yet.
+ */
+function sentEmailResult(
+  execution: Execution | null,
+  ran: boolean,
+  mailMode: 'log' | 'ses' | null,
+  liveTo: string[],
+  attachmentFallback = '',
+) {
+  const emails = execution?.emails ?? []
+  const sent = emails[0]
+  const logged = sent?.delivery === 'logged' || (ran && mailMode === 'log' && !sent)
+  const delivered = (sent?.to ?? []).filter(Boolean)
+  const meantFor = (sent?.redirectedFrom ?? []).filter(Boolean)
+  const attached = emails.map((email) => email.fileName).filter(Boolean).join(', ') || attachmentFallback
+  const to = delivered.join(', ') || liveTo.join(', ')
+  const result: FlowField[] = [{ label: logged ? 'Would go to' : 'Sent to', value: to || 'No address' }]
+  if (meantFor.length) {
+    result.push({ label: 'Practice run. In Live it goes to', value: meantFor.join(', ') })
+  }
+  result.push({ label: 'Subject', value: sent?.subject || '—' })
+  if (emails.length > 1) result.push({ label: 'Emails', value: String(emails.length) })
+  result.push(
+    { label: 'Attachment', value: attached || 'None' },
+    { label: 'Result', value: logged ? 'Prepared. Nothing was sent.' : friendlyText(execution?.summary ?? '') || 'Sent' },
+  )
+  return { result, to }
+}
+
 function mondayBoard(boardName: string, boardId: string): FlowField[] {
   return [
     { label: 'Monday board', value: boardName },
@@ -127,6 +173,7 @@ function mondayBoard(boardName: string, boardId: string): FlowField[] {
 }
 
 function reached(index: number, execution: Execution) {
+  if (execution.status === 'listening') return index === 0
   const outcome = flowOutcome(execution)
   if (!outcome.stopped) return true
   return index <= outcome.current
@@ -145,20 +192,25 @@ export function nodeDetail(
   const summary = execution?.summary ?? execution?.errorSummary ?? ''
 
   if (index === 0) {
+    const waiting = execution?.status === 'listening'
     return {
       settings: [
         ...mondayBoard(boardName, boardId),
         { label: 'Webhook', value: "My Monday Board's Column Values webhook" },
         { label: 'Watched column', value: 'Client Status' },
       ],
-      input: execution
-        ? [{ label: 'Source', value: order?.source || 'monday' }]
-        : [{ label: 'Value', value: EMPTY }],
-      output: !execution
-        ? [{ label: 'Value', value: EMPTY }]
-        : ran
-          ? [{ label: 'Order', value: order?.name || 'An order changed' }]
-          : [{ label: 'Value', value: NOT_RUN }],
+      input: waiting
+        ? [{ label: 'Source', value: 'Waiting for Monday' }]
+        : execution
+          ? [{ label: 'Source', value: order?.source || 'monday' }]
+          : [{ label: 'Value', value: EMPTY }],
+      output: waiting
+        ? [{ label: 'Order', value: 'No order set to Brand Approval yet' }]
+        : !execution
+          ? [{ label: 'Value', value: EMPTY }]
+          : ran
+            ? [{ label: 'Order', value: order?.name || 'An order changed' }]
+            : [{ label: 'Value', value: NOT_RUN }],
       notice: null,
     }
   }
@@ -217,7 +269,7 @@ export function nodeDetail(
       settings: [
         ...mondayBoard(boardName, boardId),
         { label: 'Column', value: 'PO File' },
-        { label: 'Bundles', value: 'One email for each file' },
+        { label: 'Bundles', value: 'One email for each file. With no file, one email without an attachment.' },
       ],
       input: execution
         ? [{ label: 'Files', value: files.length ? fileNames(order) : 'No file' }]
@@ -229,9 +281,10 @@ export function nodeDetail(
           : files.length
             ? files.map((file) => ({ label: 'Attachment', value: file.fileName || 'po-file' }))
             : [{ label: 'Attachment', value: 'No file' }],
-      notice:
-        stoppedHere || (ran && files.length === 0)
-          ? { tone: 'warning', text: summary || 'This order has no purchase order file.' }
+      notice: stoppedHere
+        ? { tone: 'warning', text: summary || 'This order has no purchase order file.' }
+        : ran && files.length === 0
+          ? { tone: 'warning', text: 'This order has no PO file. The email is sent without an attachment.' }
           : null,
     }
   }
@@ -265,7 +318,16 @@ export function nodeDetail(
 
   const email = execution?.emails?.[0]
   const logged = email?.delivery === 'logged' || (ran && mailMode === 'log' && !email)
+  const { result, to } = sentEmailResult(execution, ran, mailMode, recipients(order), fileNames(order))
   return {
+    about: [
+      {
+        label: 'Sends to',
+        value:
+          'The order’s Client Sales Email and Client Order email. One email per purchase order file, with that file attached. With no file, one email without an attachment.',
+      },
+    ],
+    editRecipients: true,
     settings: [
       { label: 'To', value: 'Addresses from the previous step' },
       { label: 'Subject', value: 'Brand Approval for PO {{PO Number}}' },
@@ -277,7 +339,7 @@ export function nodeDetail(
     ],
     input: execution
       ? [
-          { label: 'To', value: email?.to?.join(', ') || recipients(order).join(', ') || '—' },
+          { label: 'To', value: to || '—' },
           { label: 'Subject', value: email?.subject || `Brand Approval for PO ${order?.poNumber || ''}` },
           { label: 'Attachment', value: email?.fileName || fileNames(order) },
         ]
@@ -287,7 +349,7 @@ export function nodeDetail(
       : !ran
         ? [{ label: 'Value', value: NOT_RUN }]
         : [
-            { label: 'Delivery', value: email?.delivery === 'sent' ? 'Sent' : 'Prepared' },
+            ...result,
             {
               label: 'Message',
               value: email?.html || 'Dear Helmsman Client,<br><br>Please see PO below attached for approval.',
@@ -470,7 +532,8 @@ export function poReceivedNodeDetail(
 ): FlowNodeDetail {
   const order = execution?.order
   const outcome = execution ? poReceivedFlowOutcome(execution) : null
-  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const waiting = execution?.status === 'listening'
+  const ran = waiting ? index === 0 : Boolean(outcome && (!outcome.stopped || index <= outcome.current))
   const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
   const summary = execution?.summary ?? ''
   const found = receivedRecipients(order)
@@ -478,8 +541,16 @@ export function poReceivedNodeDetail(
   if (index === 0) {
     return {
       settings: [...mondayBoard(boardName, boardId), { label: 'Watched column', value: 'Client Status' }],
-      input: execution ? [{ label: 'Source', value: order?.source || 'monday' }] : [{ label: 'Value', value: EMPTY }],
-      output: execution ? [{ label: 'Order', value: order?.name || 'An order changed' }] : [{ label: 'Value', value: EMPTY }],
+      input: waiting
+        ? [{ label: 'Source', value: 'Waiting for Monday' }]
+        : execution
+          ? [{ label: 'Source', value: order?.source || 'monday' }]
+          : [{ label: 'Value', value: EMPTY }],
+      output: waiting
+        ? [{ label: 'Order', value: 'No order set to Received yet' }]
+        : execution
+          ? [{ label: 'Order', value: order?.name || 'An order changed' }]
+          : [{ label: 'Value', value: EMPTY }],
       notice: null,
     }
   }
@@ -523,22 +594,32 @@ export function poReceivedNodeDetail(
   }
   if (index === 4) {
     return {
-      settings: [{ label: 'Attachment', value: 'Purchase order file' }],
+      settings: [{ label: 'Attachment', value: 'Purchase order file. With no file, the email goes out without one.' }],
       input: execution ? [{ label: 'Files', value: fileNames(order) }] : [{ label: 'Value', value: EMPTY }],
       output: !ran
         ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
         : [{ label: 'Attachment', value: fileNames(order) }],
-      notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
+      notice: stoppedHere
+        ? { tone: 'warning', text: friendlyText(summary) }
+        : ran && !(order?.files ?? []).length
+          ? { tone: 'warning', text: 'This order has no PO file. The email is sent without an attachment.' }
+          : null,
     }
   }
-  const email = execution?.emails?.[0]
-  const logged = email?.delivery === 'logged' || (ran && mailMode === 'log' && !email)
+  const { result, to } = sentEmailResult(execution, ran, mailMode, found)
   return {
+    about: [
+      {
+        label: 'Sends to',
+        value:
+          'Outgoing orders: the Purchase Order Email. Direct orders: the client’s sales and order emails. One email per purchase order file, with that file attached. With no file, one email without an attachment.',
+      },
+      { label: 'From', value: 'orders@helmsmanimports.com' },
+    ],
+    editRecipients: true,
     settings: [{ label: 'From', value: 'orders@helmsmanimports.com' }],
-    input: execution ? [{ label: 'To', value: found.join(', ') || '—' }] : [{ label: 'Value', value: EMPTY }],
-    output: !ran
-      ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
-      : [{ label: 'Email', value: logged ? 'Prepared. Nothing was sent.' : email?.subject || friendlyText(summary) }],
+    input: execution ? [{ label: 'To', value: to || '—' }] : [{ label: 'Value', value: EMPTY }],
+    output: !ran ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }] : result,
     notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary || 'This order has no email address.') } : null,
   }
 }
@@ -552,7 +633,8 @@ export function pickupNodeDetail(
 ): FlowNodeDetail {
   const order = execution?.order
   const outcome = execution ? pickupFlowOutcome(execution) : null
-  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const waiting = execution?.status === 'listening'
+  const ran = waiting ? index === 0 : Boolean(outcome && (!outcome.stopped || index <= outcome.current))
   const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
   const summary = execution?.summary ?? ''
   const outgoing = (order?.orderType || '') === 'Outgoing'
@@ -565,8 +647,16 @@ export function pickupNodeDetail(
   if (index === 0) {
     return {
       settings: [...mondayBoard(boardName, boardId), { label: 'Watched column', value: 'Client Status' }],
-      input: execution ? [{ label: 'Source', value: order?.source || 'monday' }] : [{ label: 'Value', value: EMPTY }],
-      output: execution ? [{ label: 'Order', value: order?.name || 'An order changed' }] : [{ label: 'Value', value: EMPTY }],
+      input: waiting
+        ? [{ label: 'Source', value: 'Waiting for Monday' }]
+        : execution
+          ? [{ label: 'Source', value: order?.source || 'monday' }]
+          : [{ label: 'Value', value: EMPTY }],
+      output: waiting
+        ? [{ label: 'Order', value: 'No order set to Staged yet' }]
+        : execution
+          ? [{ label: 'Order', value: order?.name || 'An order changed' }]
+          : [{ label: 'Value', value: EMPTY }],
       notice: null,
     }
   }
@@ -627,14 +717,20 @@ export function pickupNodeDetail(
       notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
     }
   }
-  const sent = execution?.emails?.[0]
-  const logged = sent?.delivery === 'logged' || (ran && mailMode === 'log' && !sent)
+  const { result, to } = sentEmailResult(execution, ran, mailMode, recipients)
   return {
+    about: [
+      {
+        label: 'Sends to',
+        value:
+          'Outgoing orders: the Purchase Order Email, with the pick up address and instructions. Direct orders: the client’s order and sales emails.',
+      },
+      { label: 'From', value: 'orders@helmsmanimports.com' },
+    ],
+    editRecipients: true,
     settings: [{ label: 'From', value: 'orders@helmsmanimports.com' }],
-    input: execution ? [{ label: 'To', value: recipients.join(', ') || '—' }] : [{ label: 'Value', value: EMPTY }],
-    output: !ran
-      ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
-      : [{ label: 'Email', value: logged ? 'Prepared. Nothing was sent.' : sent?.subject || friendlyText(summary) }],
+    input: execution ? [{ label: 'To', value: to || '—' }] : [{ label: 'Value', value: EMPTY }],
+    output: !ran ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }] : result,
     notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary || 'This order has no email address.') } : null,
   }
 }
@@ -725,22 +821,7 @@ export function inboundNodeDetail(
       notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
     }
   }
-  const sent = execution?.emails?.[0]
-  const logged = sent?.delivery === 'logged' || (ran && mailMode === 'log' && !sent)
-  const delivered = (sent?.to ?? []).filter(Boolean)
-  const meantFor = (sent?.redirectedFrom ?? []).filter(Boolean)
-  const attached = (sent?.fileName || report || '').trim()
-  const result: FlowField[] = [
-    { label: logged ? 'Would go to' : 'Sent to', value: delivered.join(', ') || owners.join(', ') || 'No address' },
-  ]
-  if (meantFor.length) {
-    result.push({ label: 'Practice run. In Live it goes to', value: meantFor.join(', ') })
-  }
-  result.push(
-    { label: 'Subject', value: sent?.subject || '—' },
-    { label: 'Attachment', value: attached || 'None' },
-    { label: 'Result', value: logged ? 'Prepared. Nothing was sent.' : friendlyText(summary) || 'Sent' },
-  )
+  const { result, to } = sentEmailResult(execution, ran, mailMode, owners, report)
   return {
     about: [
       {
@@ -752,13 +833,100 @@ export function inboundNodeDetail(
     ],
     editRecipients: true,
     settings: [{ label: 'From', value: 'logistics@helmsmanimports.com' }],
-    input: execution
-      ? [{ label: 'To', value: delivered.join(', ') || owners.join(', ') || '—' }]
-      : [{ label: 'Value', value: EMPTY }],
+    input: execution ? [{ label: 'To', value: to || '—' }] : [{ label: 'Value', value: EMPTY }],
     output: !ran ? [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }] : result,
     notice: stoppedHere ? { tone: 'warning', text: friendlyText(summary) } : null,
   }
 }
 
+export function inboxNodeDetail(
+  index: number,
+  execution: Execution | null,
+  boardName: string,
+  boardId: string,
+): FlowNodeDetail {
+  const order = execution?.order
+  const outcome = execution ? inboxFlowOutcome(execution) : null
+  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
+  const summary = friendlyText(execution?.summary ?? '')
+  const practice = execution?.mode === 'test'
+  const waiting: FlowField[] = [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+  const tone = execution?.status === 'error' ? 'error' : 'warning'
+  const notice: FlowNotice | null = stoppedHere ? { tone, text: summary } : null
 
-
+  if (index === 0) {
+    return {
+      about: [
+        { label: 'Mailbox', value: 'orders@helmsmanimports.com' },
+        { label: 'Checks', value: 'Every 10 minutes, for incoming email with attached files' },
+        { label: 'Skips', value: 'Sent mail, drafts, and email already saved' },
+      ],
+      settings: [],
+      input: waiting,
+      output: ran ? [{ label: 'Email', value: order?.name || 'No new email' }] : waiting,
+      notice,
+    }
+  }
+  if (index === 1) {
+    return {
+      about: [{ label: 'Leaves out', value: 'Logos and pictures shown inside the email' }],
+      settings: [],
+      input: waiting,
+      output: ran
+        ? [
+            { label: 'From', value: order?.sender || '—' },
+            { label: 'Subject', value: order?.name || '—' },
+            { label: 'Received', value: order?.receivedAt || '—' },
+            { label: 'Files', value: fileNames(order) },
+          ]
+        : waiting,
+      notice,
+    }
+  }
+  if (index === 2) {
+    return {
+      about: [...mondayBoard(boardName, boardId), { label: 'Order name', value: 'The email subject' }],
+      settings: [],
+      input: waiting,
+      output: ran
+        ? [
+            practice
+              ? { label: 'Order', value: 'Practice run. Nothing was added to Monday.' }
+              : { label: 'Monday item', value: order?.pulseId || '—' },
+          ]
+        : waiting,
+      notice,
+    }
+  }
+  if (index === 3) {
+    return {
+      about: [
+        { label: 'Saved to', value: 'The Files column of the new order' },
+        { label: 'Also', value: 'Adds a note with the sender and the message. The mailbox itself is never changed.' },
+      ],
+      settings: [],
+      input: waiting,
+      output: ran ? [{ label: 'Result', value: summary || '—' }] : waiting,
+      notice,
+    }
+  }
+  return {
+    about: [
+      { label: 'Reads', value: 'PDFs and pictures, with Gemini' },
+      { label: 'Fills in', value: 'The PO Number column' },
+      { label: 'If it cannot', value: 'The order and its files are still saved' },
+    ],
+    settings: [],
+    input: waiting,
+    output: ran
+      ? [
+          { label: 'PO number', value: order?.poNumber || 'Not found' },
+          { label: 'Customer', value: order?.customer || '—' },
+          { label: 'Order', value: order?.orderSummary || '—' },
+          ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
+        ]
+      : waiting,
+    notice,
+  }
+}

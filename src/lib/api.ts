@@ -63,6 +63,14 @@ export function fetchExecution(scenarioId: string, executionId: string) {
   return request<{ execution: Execution }>(`/api/scenarios/${scenarioId}/executions/${executionId}`)
 }
 
+/** A listening test run asks Monday whether an order reached the status it waits for. */
+export function checkMonday(scenarioId: string, executionId: string) {
+  return request<{ execution: Execution }>(
+    `/api/scenarios/${scenarioId}/executions/${executionId}/check-monday`,
+    { method: 'POST' },
+  )
+}
+
 export function fetchIncomplete(id: string, mode: RunMode) {
   return request<{ executions: Execution[] }>(`/api/scenarios/${id}/incomplete?mode=${mode}`)
 }

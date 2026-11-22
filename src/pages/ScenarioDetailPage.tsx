@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
 import {
+  checkMonday,
   continueExecution,
   fetchExecution,
   fetchHealth,
@@ -20,7 +21,7 @@ import { belongsToMode } from '@/lib/runMode'
 import { CompareView } from '@/components/detail/CompareView'
 import { DetailTabs, type DetailTab } from '@/components/detail/DetailTabs'
 import { FlowView } from '@/components/detail/FlowView'
-import { flowOutcome, inboundFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
+import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
@@ -139,6 +140,18 @@ export function ScenarioDetailPage() {
   const receivedScenario = id === 'sc-po-received-email'
   const pickupScenario = id === 'sc-ready-for-pickup-email'
   const inboundScenario = id === 'sc-inbound-complete-email'
+  const inboxScenario = id === 'sc-new-order-from-email'
+  const brandScenario = id === 'sc-brand-approval-email'
+  // Outgoing order emails wait for this Client Status on the Outgoing Orders board.
+  const outgoingStatus = brandScenario
+    ? 'Brand Approval'
+    : receivedScenario
+      ? 'Received'
+      : pickupScenario
+        ? 'Staged'
+        : null
+  // Test runs of these wait for the next Monday event instead of picking an order.
+  const listenerScenario = inboundScenario || outgoingStatus !== null
   const showCompare = (inventoryScenario || warehouseScenario) && mode === 'production'
   const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
   const outcomeFor = inventoryScenario || warehouseScenario
@@ -149,7 +162,9 @@ export function ScenarioDetailPage() {
         ? pickupFlowOutcome
         : inboundScenario
           ? inboundFlowOutcome
-          : flowOutcome
+          : inboxScenario
+            ? inboxFlowOutcome
+            : flowOutcome
 
   async function followRun(first: { execution: Execution }) {
     let body = first
@@ -190,18 +205,22 @@ export function ScenarioDetailPage() {
       setFlowExecution(execution)
       setFlowProgress({ current: 0 })
       setProgressNote(
-        `Listening for a Monday inbound complete event. The email goes to ${practiceAddress}, then listening stops.`,
+        outgoingStatus
+          ? `Listening for an order set to ${outgoingStatus} on Monday. The email goes to ${practiceAddress}, then listening stops.`
+          : `Listening for a Monday inbound complete event. The email goes to ${practiceAddress}, then listening stops.`,
       )
       try {
         let current = execution
         while (current.status === 'listening') {
           await new Promise((resolve) => window.setTimeout(resolve, 2000))
           if (watchId.current !== execution.id) return
-          const found = (await fetchExecution(id, execution.id)).execution
+          // Outgoing order emails also ask Monday themselves, in case Monday's webhook does not reach the backend.
+          const found = (outgoingStatus ? await checkMonday(id, execution.id) : await fetchExecution(id, execution.id))
+            .execution
           if (watchId.current !== execution.id) return
           current = found
           setFlowExecution(found)
-          if (found.status !== 'listening') setFlowProgress(inboundFlowOutcome(found))
+          if (found.status !== 'listening') setFlowProgress(outcomeFor(found))
         }
         if (watchId.current !== execution.id) return
         setProgressNote(null)
@@ -218,6 +237,8 @@ export function ScenarioDetailPage() {
         }
       }
     },
+    // outcomeFor and outgoingStatus follow id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [id, load, practiceAddress],
   )
 
@@ -228,11 +249,11 @@ export function ScenarioDetailPage() {
   }, [id, mode])
 
   useEffect(() => {
-    if (!inboundScenario || mode !== 'test') return
+    if (!listenerScenario || mode !== 'test') return
     const open = history.find((row) => row.status === 'listening')
     if (!open) return
     void watchInboundListener(open)
-  }, [history, inboundScenario, mode, watchInboundListener])
+  }, [history, listenerScenario, mode, watchInboundListener])
 
   // Lists carry light rows only. The flow view loads the newest run in full, and only when it is open.
   const newest = history.find((row) => row.status !== 'pending') ?? null
@@ -262,7 +283,7 @@ export function ScenarioDetailPage() {
     setFlowProgress({ current: 0 })
     try {
       const started = await runScenario(id, mode)
-      if (inboundScenario && mode === 'test' && started.execution.status === 'listening') {
+      if (listenerScenario && mode === 'test' && started.execution.status === 'listening') {
         setPendingRun(null)
         await watchInboundListener(started.execution)
         return
@@ -276,7 +297,7 @@ export function ScenarioDetailPage() {
       await load().catch(() => undefined)
     } finally {
       setPendingRun(null)
-      if (!(inboundScenario && mode === 'test' && watchId.current)) setRunning(false)
+      if (!(listenerScenario && mode === 'test' && watchId.current)) setRunning(false)
     }
   }
 
@@ -456,7 +477,9 @@ export function ScenarioDetailPage() {
                       ? 'pickup'
                       : inboundScenario
                         ? 'inbound'
-                        : 'brand'
+                        : inboxScenario
+                          ? 'inbox'
+                          : 'brand'
             }
             progress={
               running || flowProgress

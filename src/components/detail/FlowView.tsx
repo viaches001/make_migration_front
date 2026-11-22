@@ -1,9 +1,9 @@
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, Check, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
+import { ArrowRight, Check, Clock, Sparkles, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { EmailRecipients, Execution } from '@/types/automation'
 import { RecipientsEditor } from '@/components/detail/RecipientsEditor'
 import { cn, friendlyText } from '@/lib/format'
-import { inboundNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
+import { inboundNodeDetail, inboxNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
 
@@ -14,6 +14,41 @@ interface Step {
   detail: string
   stop?: string
 }
+
+const inboxSteps: Step[] = [
+  {
+    icon: Clock,
+    kicker: 'Start',
+    title: 'Check the mailbox',
+    detail: 'Every 10 minutes, looks for new email sent to the orders mailbox.',
+  },
+  {
+    icon: MailSearch,
+    kicker: 'Read',
+    title: 'Read the email',
+    detail: 'Reads who sent it, the subject, and the attached files.',
+    stop: 'No attached files stops here',
+  },
+  {
+    icon: Square,
+    kicker: 'Order',
+    title: 'New order',
+    detail: 'Adds an order to the board, named after the email subject.',
+  },
+  {
+    icon: FileDown,
+    kicker: 'Files',
+    title: 'Save the files',
+    detail: 'Puts every attached file on the order. The email is left untouched.',
+    stop: 'A file that cannot be saved waits for a retry',
+  },
+  {
+    icon: Sparkles,
+    kicker: 'PO',
+    title: 'Read the PO',
+    detail: 'Gemini reads the PDFs for the PO number and fills it in. If it cannot, the order is still saved.',
+  },
+]
 
 const inboundSteps: Step[] = [
   {
@@ -244,7 +279,7 @@ function stepState(index: number, progress: FlowProgress | null) {
 }
 
 interface Props {
-  variant?: 'brand' | 'received' | 'pickup' | 'inbound' | 'inventory' | 'warehouse'
+  variant?: 'brand' | 'received' | 'pickup' | 'inbound' | 'inbox' | 'inventory' | 'warehouse'
   progress?: FlowProgress | null
   execution?: Execution | null
   mailMode?: 'log' | 'ses' | null
@@ -282,7 +317,9 @@ export function FlowView({
             ? pickupSteps
             : variant === 'inbound'
               ? inboundSteps
-              : steps
+              : variant === 'inbox'
+                ? inboxSteps
+                : steps
   const live = variant === 'inventory' || variant === 'warehouse'
   const detail =
     selected == null
@@ -298,6 +335,8 @@ export function FlowView({
                   ? pickupNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
                   : variant === 'inbound'
                     ? inboundNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
+                  : variant === 'inbox'
+                    ? inboxNodeDetail(selected, execution ?? null, boardName, boardId)
                   : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
           stepState(selected, progress),
           live,
@@ -318,7 +357,9 @@ export function FlowView({
                 ? 'Ready for pick up steps'
                 : variant === 'inbound'
                   ? 'Inbound complete steps'
-                  : 'Brand approval steps'
+                  : variant === 'inbox'
+                    ? 'New order from email steps'
+                    : 'Brand approval steps'
       }
       className="relative min-h-[440px] min-w-0 flex-1 overflow-auto rounded-2xl border border-helm-100 bg-white"
     >

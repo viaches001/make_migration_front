@@ -63,6 +63,12 @@ export interface OrderSnapshot {
   brandEmails?: string[]
   source?: string
   spreadsheetId?: string
+  messageId?: string
+  customer?: string
+  orderSummary?: string
+  readNote?: string
+  sender?: string
+  receivedAt?: string
   files?: Array<{ assetId?: string; fileName?: string; publicUrl?: string | null }>
 }
 
