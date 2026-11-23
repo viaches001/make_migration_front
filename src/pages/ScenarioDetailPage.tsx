@@ -8,6 +8,7 @@ import {
   fetchHealth,
   fetchHistory,
   fetchIncomplete,
+  fetchSampleFiles,
   fetchScenario,
   ignoreExecution,
   retryExecution,
@@ -15,15 +16,17 @@ import {
   saveRecipients,
   setScenarioStatus,
   type RunMode,
+  type SampleFile,
 } from '@/lib/api'
 import type { Execution, Scenario, ScenarioStatus } from '@/types/automation'
 import { belongsToMode } from '@/lib/runMode'
 import { CompareView } from '@/components/detail/CompareView'
 import { DetailTabs, type DetailTab } from '@/components/detail/DetailTabs'
 import { FlowView } from '@/components/detail/FlowView'
-import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
+import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inboxTestFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
+import { SamplePicker } from '@/components/detail/SamplePicker'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
 import { cn, formatDateTime, friendlyText } from '@/lib/format'
 
@@ -49,6 +52,10 @@ export function ScenarioDetailPage() {
   const [flowExecution, setFlowExecution] = useState<Execution | null>(null)
   const [selectedNode, setSelectedNode] = useState<number | null>(null)
   const watchId = useRef<string | null>(null)
+  // New order from email, Test mode: the PO file on the board that the test reads.
+  const [samples, setSamples] = useState<SampleFile[] | null>(null)
+  const [samplesError, setSamplesError] = useState<string | null>(null)
+  const [sampleId, setSampleId] = useState<string | null>(null)
   const practiceAddress = scenario?.recipients?.practice.join(', ') || 'the practice address'
 
   // Runs and Needs attention show only the selected mode's runs.
@@ -163,8 +170,37 @@ export function ScenarioDetailPage() {
         : inboundScenario
           ? inboundFlowOutcome
           : inboxScenario
-            ? inboxFlowOutcome
+            ? mode === 'test'
+              ? inboxTestFlowOutcome
+              : inboxFlowOutcome
             : flowOutcome
+
+  const inboxTest = inboxScenario && mode === 'test'
+
+  // Test mode reads a sample file instead of the mailbox, so its first step opens with the file list.
+  useEffect(() => {
+    if (inboxScenario) setSelectedNode(mode === 'test' ? 0 : null)
+  }, [inboxScenario, mode])
+
+  useEffect(() => {
+    if (!inboxTest || samples !== null) return
+    let cancelled = false
+    setSamplesError(null)
+    fetchSampleFiles(id)
+      .then((body) => {
+        if (cancelled) return
+        setSamples(body.files)
+        setSampleId((current) => current ?? body.files[0]?.assetId ?? null)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setSamples([])
+        setSamplesError(err instanceof Error ? err.message : 'Could not load the sample files')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, inboxTest, samples])
 
   async function followRun(first: { execution: Execution }) {
     let body = first
@@ -282,7 +318,7 @@ export function ScenarioDetailPage() {
     setFlowExecution(null)
     setFlowProgress({ current: 0 })
     try {
-      const started = await runScenario(id, mode)
+      const started = await runScenario(id, mode, inboxTest && sampleId ? { sampleAssetId: sampleId } : {})
       if (listenerScenario && mode === 'test' && started.execution.status === 'listening') {
         setPendingRun(null)
         await watchInboundListener(started.execution)
@@ -494,6 +530,18 @@ export function ScenarioDetailPage() {
             boardId={scenario.boardId}
             selected={selectedNode}
             onSelect={setSelectedNode}
+            samplePicker={
+              inboxTest ? (
+                <SamplePicker
+                  files={samples ?? []}
+                  loading={samples === null && !samplesError}
+                  error={samplesError}
+                  selected={sampleId}
+                  onSelect={setSampleId}
+                  disabled={running}
+                />
+              ) : undefined
+            }
           />
         )}
 

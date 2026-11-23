@@ -67,6 +67,11 @@ export interface OrderSnapshot {
   customer?: string
   orderSummary?: string
   readNote?: string
+  /** Test runs of New order from email read a file already on the board. */
+  sampleAssetId?: string
+  sampleItemId?: string
+  mondayPoNumber?: string
+  poMatches?: boolean | null
   sender?: string
   receivedAt?: string
   files?: Array<{ assetId?: string; fileName?: string; publicUrl?: string | null }>

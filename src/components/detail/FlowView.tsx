@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, Check, Clock, Sparkles, FileDown, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
+import { ArrowRight, Check, Clock, Sparkles, FileDown, FileText, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { EmailRecipients, Execution } from '@/types/automation'
 import { RecipientsEditor } from '@/components/detail/RecipientsEditor'
 import { cn, friendlyText } from '@/lib/format'
-import { inboundNodeDetail, inboxNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
+import { inboundNodeDetail, inboxNodeDetail, inboxTestNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
 
@@ -47,6 +48,22 @@ const inboxSteps: Step[] = [
     kicker: 'PO',
     title: 'Read the PO',
     detail: 'AI reads the PDFs for the PO number and fills it in. If it cannot, the order is still saved.',
+  },
+]
+
+// Test mode reads a file already on the board. The mailbox is not checked and nothing is added.
+const inboxTestSteps: Step[] = [
+  {
+    icon: FileText,
+    kicker: 'Sample',
+    title: 'Pick a sample file',
+    detail: 'Choose a PO file from one of the 10 newest orders on the board.',
+  },
+  {
+    icon: Sparkles,
+    kicker: 'PO',
+    title: 'Read the PO',
+    detail: 'AI reads the file for the PO number and checks it against Monday. Nothing is added to the board.',
   },
 ]
 
@@ -291,6 +308,8 @@ interface Props {
   onSaveRecipients?: (next: EmailRecipients) => Promise<void>
   /** The page's mode. The practice list only matters, and only shows, in practice. */
   mode?: 'test' | 'production'
+  /** New order from email in Test mode: the sample file chooser, shown on the first step. */
+  samplePicker?: ReactNode
 }
 
 export function FlowView({
@@ -305,7 +324,9 @@ export function FlowView({
   recipients,
   onSaveRecipients,
   mode = 'production',
+  samplePicker,
 }: Props) {
+  const inboxTest = variant === 'inbox' && mode === 'test'
   const activeSteps =
     variant === 'inventory'
       ? inventorySteps
@@ -318,7 +339,9 @@ export function FlowView({
             : variant === 'inbound'
               ? inboundSteps
               : variant === 'inbox'
-                ? inboxSteps
+                ? inboxTest
+                  ? inboxTestSteps
+                  : inboxSteps
                 : steps
   const live = variant === 'inventory' || variant === 'warehouse'
   const detail =
@@ -335,6 +358,8 @@ export function FlowView({
                   ? pickupNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
                   : variant === 'inbound'
                     ? inboundNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
+                  : inboxTest
+                    ? inboxTestNodeDetail(selected, execution ?? null, boardName, boardId)
                   : variant === 'inbox'
                     ? inboxNodeDetail(selected, execution ?? null, boardName, boardId)
                   : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
@@ -463,6 +488,7 @@ export function FlowView({
       onClose={() => onSelect(null)}
       recipients={mode === 'test' ? recipients : undefined}
       onSaveRecipients={onSaveRecipients}
+      picker={inboxTest && selected === 0 ? samplePicker : undefined}
     />
     </div>
   )
@@ -485,6 +511,7 @@ function NodeInspector({
   onClose,
   recipients,
   onSaveRecipients,
+  picker,
 }: {
   title: string
   blurb: string
@@ -492,6 +519,7 @@ function NodeInspector({
   onClose: () => void
   recipients?: EmailRecipients
   onSaveRecipients?: (next: EmailRecipients) => Promise<void>
+  picker?: ReactNode
 }) {
   return (
     <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-helm-100 bg-white xl:w-[520px]">
@@ -529,6 +557,7 @@ function NodeInspector({
                 <FieldList fields={detail.about} />
               </div>
             )}
+            {picker && <div className="mb-4 border-b border-helm-50 pb-4">{picker}</div>}
             {detail.editRecipients && recipients && onSaveRecipients && (
               <div className="mb-4 border-b border-helm-50 pb-4">
                 <RecipientsEditor recipients={recipients} onSave={onSaveRecipients} />

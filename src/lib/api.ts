@@ -123,6 +123,20 @@ export function runScenario(id: string, mode: RunMode, body: Record<string, unkn
   })
 }
 
+/** A PO file already on the Outgoing Orders board, used by New order from email test runs. */
+export interface SampleFile {
+  assetId: string
+  fileName: string
+  itemId: string
+  itemName: string
+  createdAt: string
+  poNumber: string
+}
+
+export function fetchSampleFiles(scenarioId: string) {
+  return request<{ files: SampleFile[] }>(`/api/scenarios/${scenarioId}/sample-files`)
+}
+
 export function continueExecution(scenarioId: string, executionId: string) {
   return request<{ execution: Execution }>(
     `/api/scenarios/${scenarioId}/executions/${executionId}/continue`,

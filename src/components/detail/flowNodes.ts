@@ -930,3 +930,68 @@ export function inboxNodeDetail(
     notice,
   }
 }
+
+/** Test runs of New order from email: a sample file from the board, then the PO reading. */
+export function inboxTestFlowOutcome(execution: Pick<Execution, 'status' | 'summary' | 'order'>): FlowProgress {
+  const summary = execution.summary ?? ''
+  if (execution.status === 'running' || execution.status === 'pending') return { current: 0 }
+  if (execution.status === 'error' || summary.startsWith('Stopped.')) return { current: 0, stopped: true }
+  if (!execution.order?.poNumber) return { current: 1, stopped: true }
+  return { current: 2 }
+}
+
+export function inboxTestNodeDetail(
+  index: number,
+  execution: Execution | null,
+  boardName: string,
+  boardId: string,
+): FlowNodeDetail {
+  const order = execution?.order
+  const outcome = execution ? inboxTestFlowOutcome(execution) : null
+  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
+  const waiting: FlowField[] = [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
+  const notice: FlowNotice | null = stoppedHere
+    ? { tone: execution?.status === 'error' ? 'error' : 'warning', text: friendlyText(execution?.summary ?? '') }
+    : null
+
+  if (index === 0) {
+    return {
+      about: [
+        ...mondayBoard(boardName, boardId),
+        { label: 'Samples', value: 'A PDF or picture from each of the 10 newest orders' },
+        { label: 'Mailbox', value: 'Not checked in Test mode' },
+      ],
+      settings: [],
+      input: waiting,
+      output: ran
+        ? [
+            { label: 'Sample file', value: fileNames(order) },
+            { label: 'From the order', value: order?.name || '—' },
+            { label: 'PO on Monday', value: order?.mondayPoNumber || '—' },
+          ]
+        : waiting,
+      notice,
+    }
+  }
+  const monday = order?.mondayPoNumber
+  const check = !order?.poNumber || !monday ? '—' : order.poMatches ? 'Yes' : `No. Monday shows ${monday}`
+  return {
+    about: [
+      { label: 'Reads', value: 'The sample file, with AI' },
+      { label: 'Test mode', value: 'Nothing is added to Monday' },
+    ],
+    settings: [],
+    input: waiting,
+    output: ran
+      ? [
+          { label: 'PO number', value: order?.poNumber || 'Not found' },
+          { label: 'Same as Monday', value: check },
+          { label: 'Customer', value: order?.customer || '—' },
+          { label: 'Order', value: order?.orderSummary || '—' },
+          ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
+        ]
+      : waiting,
+    notice,
+  }
+}
