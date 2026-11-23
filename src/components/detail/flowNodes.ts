@@ -4,6 +4,8 @@ import type { Execution, OrderSnapshot } from '@/types/automation'
 export interface FlowProgress {
   current: number
   stopped?: boolean
+  /** The current step waits for a button press, it is not running. */
+  waiting?: boolean
 }
 
 const EMAIL_PATTERN = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/
@@ -973,8 +975,9 @@ export function inboxTestFlowOutcome(execution: Pick<Execution, 'status' | 'summ
   const summary = execution.summary ?? ''
   if (execution.status === 'running' || execution.status === 'pending') return { current: 0 }
   if (execution.status === 'error' || summary.startsWith('Stopped.')) return { current: 0, stopped: true }
+  if (execution.order?.pulseId) return { current: 3 }
   if (!execution.order?.poNumber) return { current: 1, stopped: true }
-  return { current: 2 }
+  return { current: 2, waiting: true }
 }
 
 export function inboxTestNodeDetail(
@@ -1009,6 +1012,30 @@ export function inboxTestNodeDetail(
           ]
         : waiting,
       notice,
+    }
+  }
+  if (index === 2) {
+    const added = Boolean(order?.pulseId)
+    return {
+      about: [
+        ...mondayBoard(boardName, boardId),
+        { label: 'Adds', value: 'A new row named [Test] with the customer and PO number, plus the file, the PO number and a note with the order lines' },
+        { label: 'When', value: 'Only when you press Add to Monday' },
+      ],
+      settings: [],
+      input: waiting,
+      output: added
+        ? [
+            { label: 'Monday item', value: order?.mondayItemName || order?.pulseId || '—' },
+            { label: 'Item ID', value: order?.pulseId || '—' },
+            ...(order?.mondayProblems?.length
+              ? [{ label: 'Not finished', value: order.mondayProblems.map(friendlyText).join(' ') }]
+              : []),
+          ]
+        : [{ label: 'Value', value: 'Not added to Monday.' }],
+      notice: order?.mondayProblems?.length
+        ? { tone: 'warning', text: order.mondayProblems.join(' ') }
+        : null,
     }
   }
   const monday = order?.mondayPoNumber

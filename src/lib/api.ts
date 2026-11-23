@@ -142,6 +142,14 @@ export function fetchSampleFiles(scenarioId: string) {
   return request<{ files: SampleFile[] }>(`/api/scenarios/${scenarioId}/sample-files`)
 }
 
+/** New order from email, Test mode: adds the run's order to the board by hand. */
+export function addTestToMonday(scenarioId: string, executionId: string) {
+  return request<{ execution: Execution }>(
+    `/api/scenarios/${scenarioId}/executions/${executionId}/add-to-monday`,
+    { method: 'POST' },
+  )
+}
+
 export function continueExecution(scenarioId: string, executionId: string) {
   return request<{ execution: Execution }>(
     `/api/scenarios/${scenarioId}/executions/${executionId}/continue`,

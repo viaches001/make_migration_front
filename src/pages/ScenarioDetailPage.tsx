@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
 import {
+  addTestToMonday,
   checkMonday,
   continueExecution,
   fetchExecution,
@@ -27,6 +28,7 @@ import { FlowView } from '@/components/detail/FlowView'
 import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inboxTestFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
+import { AddToMonday } from '@/components/detail/AddToMonday'
 import { SamplePicker } from '@/components/detail/SamplePicker'
 import { SamplePreview } from '@/components/detail/SamplePreview'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
@@ -60,6 +62,8 @@ export function ScenarioDetailPage() {
   const [sampleId, setSampleId] = useState<string | null>(null)
   // Until a file is picked by hand, the picker follows the file of the run on screen.
   const pickedSample = useRef(false)
+  const [addingToMonday, setAddingToMonday] = useState(false)
+  const [addToMondayError, setAddToMondayError] = useState<string | null>(null)
   const practiceAddress = scenario?.recipients?.practice.join(', ') || 'the practice address'
 
   // Runs and Needs attention show only the selected mode's runs.
@@ -218,6 +222,22 @@ export function ScenarioDetailPage() {
 
   const previewFile = inboxTest ? samples?.find((file) => file.assetId === sampleId) ?? null : null
 
+  async function handleAddToMonday(executionId: string) {
+    setAddingToMonday(true)
+    setAddToMondayError(null)
+    try {
+      const body = await addTestToMonday(id, executionId)
+      setFlowExecution(body.execution)
+      setFlowProgress(outcomeFor(body.execution))
+      await load()
+      showToast(friendlyText(body.execution.order?.mondayItemName ? `Added ${body.execution.order.mondayItemName} to Monday.` : 'Added to Monday.'))
+    } catch (err: unknown) {
+      setAddToMondayError(err instanceof Error ? err.message : 'Could not add the row to Monday')
+    } finally {
+      setAddingToMonday(false)
+    }
+  }
+
   async function followRun(first: { execution: Execution }) {
     let body = first
     let guard = 0
@@ -328,6 +348,7 @@ export function ScenarioDetailPage() {
   async function handleRunSample() {
     setRunning(true)
     setError(null)
+    setAddToMondayError(null)
     setProgressNote(null)
     setTab('flow')
     beginPending()
@@ -555,6 +576,17 @@ export function ScenarioDetailPage() {
                   selected={sampleId}
                   onSelect={pickSample}
                   disabled={running}
+                />
+              ) : undefined
+            }
+            addToMonday={
+              inboxTest ? (
+                <AddToMonday
+                  execution={running ? null : shownExecution}
+                  boardName={scenario.boardName || 'the Outgoing Orders board'}
+                  busy={addingToMonday}
+                  error={addToMondayError}
+                  onAdd={(executionId) => void handleAddToMonday(executionId)}
                 />
               ) : undefined
             }

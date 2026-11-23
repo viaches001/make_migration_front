@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, Check, Clock, Sparkles, FileDown, FileText, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
+import { ArrowRight, Check, Clock, Sparkles, FileDown, FilePlus2, FileText, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { EmailRecipients, Execution } from '@/types/automation'
 import { RecipientsEditor } from '@/components/detail/RecipientsEditor'
 import { cn, friendlyText } from '@/lib/format'
@@ -64,6 +64,12 @@ const inboxTestSteps: Step[] = [
     kicker: 'PO',
     title: 'Read the PO',
     detail: 'AI reads the file for the PO number and checks it against Monday. Nothing is added to the board.',
+  },
+  {
+    icon: FilePlus2,
+    kicker: 'Monday',
+    title: 'Add to Monday',
+    detail: 'Only when you press the button: adds the order as a [Test] row with the file, then links to it.',
   },
 ]
 
@@ -288,6 +294,7 @@ const warehouseSteps: Step[] = [
 
 function stepState(index: number, progress: FlowProgress | null) {
   if (!progress) return 'idle' as const
+  if (progress.waiting && index === progress.current) return 'ready' as const
   if (progress.stopped && index === progress.current) return 'stopped' as const
   if (progress.stopped && index > progress.current) return 'idle' as const
   if (index < progress.current) return 'done' as const
@@ -312,6 +319,8 @@ interface Props {
   samplePicker?: ReactNode
   /** Shown under the steps, for example the sample file to compare with the result. */
   preview?: ReactNode
+  /** New order from email in Test mode: the Add to Monday button, shown on the last step. */
+  addToMonday?: ReactNode
 }
 
 export function FlowView({
@@ -328,6 +337,7 @@ export function FlowView({
   mode = 'production',
   samplePicker,
   preview,
+  addToMonday,
 }: Props) {
   const inboxTest = variant === 'inbox' && mode === 'test'
   const activeSteps =
@@ -415,6 +425,7 @@ export function FlowView({
                     state === 'active' && 'border-helm-500',
                     state === 'done' && 'border-helm-300',
                     state === 'stopped' && 'border-amber-400',
+                    state === 'ready' && 'border-dashed border-helm-500',
                     state === 'idle' && 'border-helm-100',
                   )}
                 >
@@ -433,7 +444,9 @@ export function FlowView({
                         ? execution?.status === 'listening'
                           ? 'Listening'
                           : 'Running'
-                        : step.kicker}
+                        : state === 'ready'
+                          ? 'Your turn'
+                          : step.kicker}
                     </span>
                   </div>
                   <h3 className="font-display text-sm font-semibold text-helm-700">{step.title}</h3>
@@ -492,7 +505,7 @@ export function FlowView({
       onClose={() => onSelect(null)}
       recipients={mode === 'test' ? recipients : undefined}
       onSaveRecipients={onSaveRecipients}
-      picker={inboxTest && selected === 0 ? samplePicker : undefined}
+      picker={inboxTest && selected === 0 ? samplePicker : inboxTest && selected === 2 ? addToMonday : undefined}
     />
     </div>
   )
@@ -503,7 +516,7 @@ function hideUnrun(
   state: ReturnType<typeof stepState>,
   live = false,
 ) {
-  if (state === 'done' || state === 'stopped' || (live && state === 'active')) return detail
+  if (state === 'done' || state === 'stopped' || state === 'ready' || (live && state === 'active')) return detail
   const waiting = [{ label: 'Value', value: 'This step has not finished yet.' }]
   return { ...detail, input: waiting, output: waiting, notice: null }
 }

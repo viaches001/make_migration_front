@@ -88,6 +88,10 @@ export interface OrderSnapshot {
   sampleItemId?: string
   mondayPoNumber?: string
   poMatches?: boolean | null
+  /** Set when a Test run was added to Monday by hand. */
+  mondayUrl?: string
+  mondayItemName?: string
+  mondayProblems?: string[]
   sender?: string
   receivedAt?: string
   files?: Array<{ assetId?: string; fileName?: string; publicUrl?: string | null }>
