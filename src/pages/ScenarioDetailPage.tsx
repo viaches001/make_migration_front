@@ -13,6 +13,7 @@ import {
   ignoreExecution,
   retryExecution,
   runScenario,
+  sampleFileUrl,
   saveRecipients,
   setScenarioStatus,
   type RunMode,
@@ -27,6 +28,7 @@ import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inboxTestFlowOutcome
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
 import { SamplePicker } from '@/components/detail/SamplePicker'
+import { SamplePreview } from '@/components/detail/SamplePreview'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
 import { cn, formatDateTime, friendlyText } from '@/lib/format'
 
@@ -56,6 +58,8 @@ export function ScenarioDetailPage() {
   const [samples, setSamples] = useState<SampleFile[] | null>(null)
   const [samplesError, setSamplesError] = useState<string | null>(null)
   const [sampleId, setSampleId] = useState<string | null>(null)
+  // Until a file is picked by hand, the picker follows the file of the run on screen.
+  const pickedSample = useRef(false)
   const practiceAddress = scenario?.recipients?.practice.join(', ') || 'the practice address'
 
   // Runs and Needs attention show only the selected mode's runs.
@@ -201,6 +205,18 @@ export function ScenarioDetailPage() {
       cancelled = true
     }
   }, [id, inboxTest, samples])
+
+  const shownSampleId = (flowExecution ?? latestFull)?.order?.sampleAssetId ?? null
+  useEffect(() => {
+    if (inboxTest && shownSampleId && !pickedSample.current) setSampleId(shownSampleId)
+  }, [inboxTest, shownSampleId])
+
+  function pickSample(assetId: string) {
+    pickedSample.current = true
+    setSampleId(assetId)
+  }
+
+  const previewFile = inboxTest ? samples?.find((file) => file.assetId === sampleId) ?? null : null
 
   async function followRun(first: { execution: Execution }) {
     let body = first
@@ -537,9 +553,14 @@ export function ScenarioDetailPage() {
                   loading={samples === null && !samplesError}
                   error={samplesError}
                   selected={sampleId}
-                  onSelect={setSampleId}
+                  onSelect={pickSample}
                   disabled={running}
                 />
+              ) : undefined
+            }
+            preview={
+              previewFile ? (
+                <SamplePreview url={sampleFileUrl(id, previewFile.assetId)} fileName={previewFile.fileName} />
               ) : undefined
             }
           />

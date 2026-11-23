@@ -310,6 +310,8 @@ interface Props {
   mode?: 'test' | 'production'
   /** New order from email in Test mode: the sample file chooser, shown on the first step. */
   samplePicker?: ReactNode
+  /** Shown under the steps, for example the sample file to compare with the result. */
+  preview?: ReactNode
 }
 
 export function FlowView({
@@ -325,6 +327,7 @@ export function FlowView({
   onSaveRecipients,
   mode = 'production',
   samplePicker,
+  preview,
 }: Props) {
   const inboxTest = variant === 'inbox' && mode === 'test'
   const activeSteps =
@@ -480,6 +483,7 @@ export function FlowView({
           )
         })}
       </div>
+      {preview && <div className="relative px-5 pb-5">{preview}</div>}
     </section>
     <NodeInspector
       title={selectedTitle}
@@ -571,7 +575,7 @@ function NodeInspector({
   )
 }
 
-function FieldList({ fields }: { fields: Array<{ label: string; value: string; html?: boolean; table?: { headers: string[]; rows: string[][] } }> }) {
+function FieldList({ fields }: { fields: Array<{ label: string; value: string; html?: boolean; table?: { headers: string[]; rows: string[][]; widths?: string[] } }> }) {
   return (
     <dl className="space-y-3">
       {fields.map((field, index) => (
@@ -581,6 +585,13 @@ function FieldList({ fields }: { fields: Array<{ label: string; value: string; h
             field.table.rows.length ? (
               <dd className="mt-1 max-h-80 overflow-auto rounded-xl border border-helm-100">
                 <table className="w-full table-fixed border-collapse text-left text-xs">
+                  {field.table.widths && (
+                    <colgroup>
+                      {field.table.widths.map((width, column) => (
+                        <col key={column} style={{ width }} />
+                      ))}
+                    </colgroup>
+                  )}
                   <thead className="sticky top-0 bg-white">
                     <tr>
                       {field.table.headers.map((header) => (

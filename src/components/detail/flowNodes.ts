@@ -12,7 +12,8 @@ export interface FlowField {
   label: string
   value: string
   html?: boolean
-  table?: { headers: string[]; rows: string[][] }
+  /** `widths` are CSS widths per column; columns share the width equally without them. */
+  table?: { headers: string[]; rows: string[][]; widths?: string[] }
 }
 
 export interface FlowNotice {
@@ -127,6 +128,43 @@ function recipients(order?: OrderSnapshot) {
     if (email && !found.includes(email)) found.push(email)
   }
   return found
+}
+
+/** Everything read from the PO file, with the order lines as a table. */
+function orderDetailFields(order?: OrderSnapshot): FlowField[] {
+  const lines = order?.orderLines ?? []
+  const quantity = (line: NonNullable<OrderSnapshot['orderLines']>[number]) =>
+    [line.quantity, line.unit].filter(Boolean).join(' ')
+  return [
+    { label: 'PO date', value: order?.poDate || '—' },
+    { label: 'Customer', value: order?.customer || '—' },
+    { label: 'Ship to', value: order?.shipTo || '—' },
+    { label: 'Delivery date', value: order?.deliveryDate || '—' },
+    { label: 'Order', value: order?.orderSummary || '—' },
+    {
+      label: `Order lines (${lines.length})`,
+      value: '',
+      table: {
+        headers: ['Product', 'Code', 'Qty', 'Unit price', 'Amount'],
+        widths: ['38%', '19%', '13%', '15%', '15%'],
+        rows: lines.map((line) => [
+          line.product || '—',
+          line.code || '—',
+          quantity(line) || '—',
+          line.unitPrice || '—',
+          line.amount || '—',
+        ]),
+      },
+    },
+    { label: 'Total', value: orderTotal(order) },
+  ]
+}
+
+function orderTotal(order?: OrderSnapshot) {
+  const total = order?.orderTotal ?? ''
+  if (!total) return '—'
+  // "10,560.00" reads better as "10,560.00 USD"; "$1,287.00" already says it.
+  return order?.currency && /^[\d.,\s]+$/.test(total) ? `${total} ${order.currency}` : total
 }
 
 function fileNames(order?: OrderSnapshot) {
@@ -922,8 +960,7 @@ export function inboxNodeDetail(
     output: ran
       ? [
           { label: 'PO number', value: order?.poNumber || 'Not found' },
-          { label: 'Customer', value: order?.customer || '—' },
-          { label: 'Order', value: order?.orderSummary || '—' },
+          ...orderDetailFields(order),
           ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
         ]
       : waiting,
@@ -985,10 +1022,10 @@ export function inboxTestNodeDetail(
     input: waiting,
     output: ran
       ? [
+          { label: 'File read', value: fileNames(order) },
           { label: 'PO number', value: order?.poNumber || 'Not found' },
           { label: 'Same as Monday', value: check },
-          { label: 'Customer', value: order?.customer || '—' },
-          { label: 'Order', value: order?.orderSummary || '—' },
+          ...orderDetailFields(order),
           ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
         ]
       : waiting,

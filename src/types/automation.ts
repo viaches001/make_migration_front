@@ -43,6 +43,15 @@ export interface Execution {
   inventory?: InventoryRun
 }
 
+export interface OrderLine {
+  product?: string
+  code?: string
+  quantity?: string
+  unit?: string
+  unitPrice?: string
+  amount?: string
+}
+
 export interface OrderSnapshot {
   pulseId?: string
   name?: string
@@ -67,6 +76,13 @@ export interface OrderSnapshot {
   customer?: string
   orderSummary?: string
   readNote?: string
+  /** Read from the PO file by AI (New order from email). */
+  poDate?: string
+  shipTo?: string
+  deliveryDate?: string
+  currency?: string
+  orderTotal?: string
+  orderLines?: OrderLine[]
   /** Test runs of New order from email read a file already on the board. */
   sampleAssetId?: string
   sampleItemId?: string

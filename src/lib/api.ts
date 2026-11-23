@@ -133,6 +133,11 @@ export interface SampleFile {
   poNumber: string
 }
 
+/** Opens the sample file inline, for comparing it with what was read. */
+export function sampleFileUrl(scenarioId: string, assetId: string) {
+  return `${apiBase}/api/scenarios/${scenarioId}/sample-files/${assetId}/file`
+}
+
 export function fetchSampleFiles(scenarioId: string) {
   return request<{ files: SampleFile[] }>(`/api/scenarios/${scenarioId}/sample-files`)
 }
