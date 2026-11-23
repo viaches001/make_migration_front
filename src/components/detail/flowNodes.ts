@@ -913,7 +913,7 @@ export function inboxNodeDetail(
   }
   return {
     about: [
-      { label: 'Reads', value: 'PDFs and pictures, with Gemini' },
+      { label: 'Reads', value: 'PDFs and pictures, with AI' },
       { label: 'Fills in', value: 'The PO Number column' },
       { label: 'If it cannot', value: 'The order and its files are still saved' },
     ],

@@ -46,7 +46,7 @@ const inboxSteps: Step[] = [
     icon: Sparkles,
     kicker: 'PO',
     title: 'Read the PO',
-    detail: 'Gemini reads the PDFs for the PO number and fills it in. If it cannot, the order is still saved.',
+    detail: 'AI reads the PDFs for the PO number and fills it in. If it cannot, the order is still saved.',
   },
 ]
 
