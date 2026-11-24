@@ -619,6 +619,70 @@ export function warehouseNodeDetail(index: number, execution: Execution | null):
   return chosen
 }
 
+function amountText(value: unknown) {
+  const number = Number(value)
+  if (value === '' || value == null || Number.isNaN(number)) return String(value ?? '')
+  return Number.isInteger(number) ? String(number) : String(Math.round(number * 100) / 100)
+}
+
+export function popNodeDetail(index: number, execution: Execution | null): FlowNodeDetail {
+  const run = execution?.inventory
+  const step = shownStep(execution)
+  const ran = step > index
+  const failed = execution?.status === 'error' || execution?.status === 'incomplete'
+  const waiting = [{ label: 'Status', value: friendlyText(execution?.summary || 'Working.') }]
+  const files = (run?.files ?? []).map((file) => [
+    file.warehouse || '',
+    file.name || '',
+    file.problem ? `Not read: ${file.problem}` : file.codes != null ? `${file.codes} codes` : 'Waiting',
+  ])
+  const updates = (run?.updates ?? []).map((row) => [
+    row.code || '',
+    row.name || '',
+    row.warehouse || '',
+    row.before || '—',
+    `${amountText(row.available)}${row.unit ? ` ${row.unit}` : ''}`,
+  ])
+  const stopped =
+    failed && step === index
+      ? { tone: execution?.status === 'error' ? 'error' as const : 'warning' as const, text: friendlyText(execution?.summary || 'The update stopped.') }
+      : null
+  const steps: FlowNodeDetail[] = [
+    {
+      settings: [],
+      input: waiting,
+      output: files.length ? [tableField('Files', ['Warehouse', 'File', 'Read'], files)] : [{ label: 'Files', value: ran ? '—' : EMPTY }],
+      notice: null,
+    },
+    {
+      settings: [],
+      input: waiting,
+      output: [{ label: 'Codes read', value: run?.codesRead != null ? String(run.codesRead) : ran ? '—' : EMPTY }],
+      notice: null,
+    },
+    {
+      settings: [],
+      input: waiting,
+      output: [
+        { label: 'POP items found in the files', value: run?.matched != null ? String(run.matched) : ran ? '—' : EMPTY },
+        ...(updates.length
+          ? [tableField('Changes', ['Code', 'Item', 'Warehouse', 'Was', 'Now'], updates)]
+          : [{ label: 'Changes', value: ran ? 'No quantities needed a change' : EMPTY }]),
+      ],
+      notice: null,
+    },
+    {
+      settings: [],
+      input: waiting,
+      output: [{ label: 'Result', value: ran || execution?.status === 'success' || execution?.status === 'warning' ? friendlyText(execution?.summary || '—') : EMPTY }],
+      notice: null,
+    },
+  ]
+  const chosen = steps[index] ?? { settings: [], input: waiting, output: waiting, notice: null }
+  if (stopped) chosen.notice = stopped
+  return chosen
+}
+
 export function poReceivedNodeDetail(
   index: number,
   execution: Execution | null,

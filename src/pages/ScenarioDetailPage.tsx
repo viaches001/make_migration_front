@@ -152,6 +152,7 @@ export function ScenarioDetailPage() {
   const inventoryScenario = id === 'sc-inventory-sync-7d'
   const warehouseScenario =
     id === 'sc-inventory-sync-fdl' || id === 'sc-inventory-sync-hanover' || id === 'sc-inventory-sync-nl'
+  const popScenario = id === 'sc-inventory-sync-pop'
   const receivedScenario = id === 'sc-po-received-email'
   const pickupScenario = id === 'sc-ready-for-pickup-email'
   const inboundScenario = id === 'sc-inbound-complete-email'
@@ -169,7 +170,7 @@ export function ScenarioDetailPage() {
   const listenerScenario = inboundScenario || outgoingStatus !== null
   const showCompare = (inventoryScenario || warehouseScenario) && mode === 'production'
   const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
-  const outcomeFor = inventoryScenario || warehouseScenario
+  const outcomeFor = inventoryScenario || warehouseScenario || popScenario
     ? inventoryFlowOutcome
     : receivedScenario
       ? poReceivedFlowOutcome
@@ -245,7 +246,7 @@ export function ScenarioDetailPage() {
       guard += 1
       setFlowExecution(body.execution)
       setFlowProgress(
-        inventoryScenario || warehouseScenario
+        inventoryScenario || warehouseScenario || popScenario
           ? inventoryFlowOutcome(body.execution)
           : receivedScenario
             ? poReceivedFlowOutcome(body.execution)
@@ -544,7 +545,9 @@ export function ScenarioDetailPage() {
                 ? 'inventory'
                 : warehouseScenario
                   ? 'warehouse'
-                  : receivedScenario
+                  : popScenario
+                    ? 'pop'
+                    : receivedScenario
                     ? 'received'
                     : pickupScenario
                       ? 'pickup'

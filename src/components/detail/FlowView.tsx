@@ -4,7 +4,7 @@ import { ArrowRight, Check, Clock, Sparkles, FileDown, FilePlus2, FileText, Filt
 import type { EmailRecipients, Execution } from '@/types/automation'
 import { RecipientsEditor } from '@/components/detail/RecipientsEditor'
 import { cn, friendlyText } from '@/lib/format'
-import { inboundNodeDetail, inboxNodeDetail, inboxTestNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
+import { inboundNodeDetail, inboxNodeDetail, inboxTestNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, popNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
 
@@ -294,6 +294,33 @@ const warehouseSteps: Step[] = [
   },
 ]
 
+const popSteps: Step[] = [
+  {
+    icon: Filter,
+    kicker: 'Files',
+    title: 'Warehouse files',
+    detail: 'Opens the newest 7D, Hanover, FDL and Network Logistics files, one at a time.',
+  },
+  {
+    icon: FileDown,
+    kicker: 'Quantities',
+    title: 'Read quantities',
+    detail: "Reads each code's quantity in the warehouse's own unit.",
+  },
+  {
+    icon: Square,
+    kicker: 'Changes',
+    title: 'What changed',
+    detail: "Matches each POP row's code in its own warehouse's file and keeps the ones that differ.",
+  },
+  {
+    icon: Check,
+    kicker: 'Save',
+    title: 'Update Available',
+    detail: 'Saves Available on the POP board. Rows are never added or renamed.',
+  },
+]
+
 function stepState(index: number, progress: FlowProgress | null) {
   if (!progress) return 'idle' as const
   if (progress.waiting && index === progress.current) return 'ready' as const
@@ -305,7 +332,7 @@ function stepState(index: number, progress: FlowProgress | null) {
 }
 
 interface Props {
-  variant?: 'brand' | 'received' | 'pickup' | 'inbound' | 'inbox' | 'inventory' | 'warehouse'
+  variant?: 'brand' | 'received' | 'pickup' | 'inbound' | 'inbox' | 'inventory' | 'warehouse' | 'pop'
   progress?: FlowProgress | null
   execution?: Execution | null
   mailMode?: 'log' | 'ses' | null
@@ -347,7 +374,9 @@ export function FlowView({
       ? inventorySteps
       : variant === 'warehouse'
         ? warehouseSteps
-        : variant === 'received'
+        : variant === 'pop'
+          ? popSteps
+          : variant === 'received'
           ? receivedSteps
           : variant === 'pickup'
             ? pickupSteps
@@ -358,7 +387,7 @@ export function FlowView({
                   ? inboxTestSteps
                   : inboxSteps
                 : steps
-  const live = variant === 'inventory' || variant === 'warehouse'
+  const live = variant === 'inventory' || variant === 'warehouse' || variant === 'pop'
   const detail =
     selected == null
       ? null
@@ -367,7 +396,9 @@ export function FlowView({
             ? inventoryNodeDetail(selected, execution ?? null)
             : variant === 'warehouse'
               ? warehouseNodeDetail(selected, execution ?? null)
-              : variant === 'received'
+              : variant === 'pop'
+                ? popNodeDetail(selected, execution ?? null)
+                : variant === 'received'
                 ? poReceivedNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
                 : variant === 'pickup'
                   ? pickupNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
@@ -391,7 +422,9 @@ export function FlowView({
           ? '7D inventory steps'
           : variant === 'warehouse'
             ? 'Warehouse inventory steps'
-            : variant === 'received'
+            : variant === 'pop'
+              ? 'POP and packaging inventory steps'
+              : variant === 'received'
               ? 'PO received steps'
               : variant === 'pickup'
                 ? 'Ready for pick up steps'

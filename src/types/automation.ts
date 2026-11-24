@@ -127,7 +127,10 @@ export interface InventoryRun {
   skipped?: string[]
   mode?: string
   flowStep?: number
-  files?: Array<{ name: string; modifiedTime?: string }>
+  /** POP runs list the warehouse file each code came from. */
+  files?: Array<{ name: string; modifiedTime?: string; warehouse?: string; codes?: number | null; problem?: string }>
+  codesRead?: number
+  matched?: number
   catalog?: Array<{ code: string; name: string; pieces: number }>
   created?: Array<{ code: string; name: string; pieces: number }>
   stock?: Array<{
@@ -146,6 +149,9 @@ export interface InventoryRun {
     allocated?: number
     inBond?: number
     date: string
+    warehouse?: string
+    before?: string
+    unit?: string
   }>
   inserts?: Array<{ code: string; name: string; available: number; product_id?: string; date: string }>
 }
