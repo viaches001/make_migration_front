@@ -50,8 +50,9 @@ export function AddToMonday({
     <div className="space-y-2">
       <p className="text-[11px] font-semibold text-helm-400">Add this result to Monday</p>
       <p className="text-sm leading-relaxed text-helm-500">
-        Adds a new row to {boardName} with the file, the PO number and a note with the order lines. Its name starts
-        with [Test], so it is easy to find and delete.
+        Adds a new row to {boardName} the way the team enters an order: Client, Brand, State, Distributor Partner,
+        Order Date and PO number filled in, the file attached, and one subitem per order line, linked to the Items
+        board, in cases. Its name starts with [Test], so it is easy to find and delete.
       </p>
       <button
         type="button"

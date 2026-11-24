@@ -162,6 +162,35 @@ function orderDetailFields(order?: OrderSnapshot): FlowField[] {
   ]
 }
 
+/** The columns and subitems a Test run filled in when it was added to Monday by hand. */
+function mondayMatchFields(order?: OrderSnapshot): FlowField[] {
+  const match = order?.mondayMatch
+  if (!match) return []
+  const lines = match.lines ?? []
+  return [
+    { label: 'Client', value: match.client || 'Not found' },
+    { label: 'Brand', value: match.brand || 'Not found' },
+    { label: 'Distributor Partner', value: match.distributor || 'Not found' },
+    { label: 'State', value: match.state || 'Not found' },
+    { label: 'Order Date', value: prettyDate(match.orderDate) || '—' },
+    { label: 'Order', value: match.orderType || '—' },
+    {
+      label: `Subitems (${lines.length})`,
+      value: '',
+      table: {
+        headers: ['Product', 'Item on Monday', 'Cases', 'Case price'],
+        widths: ['32%', '40%', '12%', '16%'],
+        rows: lines.map((line) => [
+          line.product || '—',
+          line.item ? `${line.item}${line.code ? ` (${line.code})` : ''}` : 'No match',
+          line.cases ? `${line.cases}${line.readAs === 'bottles' ? ' (from bottles)' : ''}` : '—',
+          line.casePrice || '—',
+        ]),
+      },
+    },
+  ]
+}
+
 function orderTotal(order?: OrderSnapshot) {
   const total = order?.orderTotal ?? ''
   if (!total) return '—'
@@ -1019,7 +1048,11 @@ export function inboxTestNodeDetail(
     return {
       about: [
         ...mondayBoard(boardName, boardId),
-        { label: 'Adds', value: 'A new row named [Test] with the customer and PO number, plus the file, the PO number and a note with the order lines' },
+        {
+          label: 'Adds',
+          value:
+            'A new row named [Test] the way the team enters an order: Client, Brand, State, Distributor Partner, Order Date, order type and PO number, the file, a note, and one subitem per order line linked to the Items board, in cases',
+        },
         { label: 'When', value: 'Only when you press Add to Monday' },
       ],
       settings: [],
@@ -1028,6 +1061,7 @@ export function inboxTestNodeDetail(
         ? [
             { label: 'Monday item', value: order?.mondayItemName || order?.pulseId || '—' },
             { label: 'Item ID', value: order?.pulseId || '—' },
+            ...mondayMatchFields(order),
             ...(order?.mondayProblems?.length
               ? [{ label: 'Not finished', value: order.mondayProblems.map(friendlyText).join(' ') }]
               : []),

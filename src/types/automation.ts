@@ -50,6 +50,19 @@ export interface OrderLine {
   unit?: string
   unitPrice?: string
   amount?: string
+  vintage?: string
+  name?: string
+}
+
+/** What a New order from email Test run filled in on Monday when added by hand. */
+export interface MondayMatch {
+  client?: string
+  brand?: string
+  distributor?: string
+  state?: string
+  orderDate?: string
+  orderType?: string
+  lines?: Array<{ product?: string; item?: string; code?: string; cases?: string; casePrice?: string; readAs?: string }>
 }
 
 export interface OrderSnapshot {
@@ -92,6 +105,7 @@ export interface OrderSnapshot {
   mondayUrl?: string
   mondayItemName?: string
   mondayProblems?: string[]
+  mondayMatch?: MondayMatch
   sender?: string
   receivedAt?: string
   files?: Array<{ assetId?: string; fileName?: string; publicUrl?: string | null }>
