@@ -34,7 +34,7 @@ const inboxSteps: Step[] = [
     icon: Square,
     kicker: 'Order',
     title: 'New order',
-    detail: 'Adds an order to the board, named after the email subject.',
+    detail: 'Adds an order to the board with Status Working on it, named after the email subject until the PO is read.',
   },
   {
     icon: FileDown,
@@ -46,8 +46,9 @@ const inboxSteps: Step[] = [
   {
     icon: Sparkles,
     kicker: 'PO',
-    title: 'Read the PO',
-    detail: 'AI reads the PDFs for the PO number and fills it in. If it cannot, the order is still saved.',
+    title: 'Read the PO and fill in the order',
+    detail:
+      'AI reads the PO, then fills in Client, Brand, State, Distributor, Order Date and PO number, and adds the order lines as subitems. If it cannot, the order is still saved.',
   },
 ]
 

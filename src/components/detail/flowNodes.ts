@@ -198,6 +198,30 @@ function orderTotal(order?: OrderSnapshot) {
   return order?.currency && /^[\d.,\s]+$/.test(total) ? `${total} ${order.currency}` : total
 }
 
+function escapeHtml(text: string) {
+  return text.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch] ?? ch)
+}
+
+/** The order's row on Monday: its name, and a link to open it when the address is known. */
+function mondayRowFields(order?: OrderSnapshot): FlowField[] {
+  if (!order?.pulseId) return [{ label: 'Monday item', value: '—' }]
+  const name = order.mondayItemName || order.name || order.pulseId
+  return [
+    { label: 'Monday item', value: name },
+    { label: 'Item ID', value: order.pulseId },
+    { label: 'Status', value: 'Working on it' },
+    ...(order.mondayUrl
+      ? [
+          {
+            label: 'Open',
+            value: `<a href="${escapeHtml(order.mondayUrl)}" target="_blank" rel="noreferrer" class="font-medium text-helm-600 underline">Open on Monday</a>`,
+            html: true,
+          },
+        ]
+      : []),
+  ]
+}
+
 function fileNames(order?: OrderSnapshot) {
   const names = (order?.files ?? []).map((file) => file.fileName).filter(Boolean) as string[]
   return names.length > 0 ? names.join(', ') : 'No file'
@@ -963,9 +987,9 @@ export function inboxNodeDetail(
       input: waiting,
       output: ran
         ? [
-            practice
-              ? { label: 'Order', value: 'Practice run. Nothing was added to Monday.' }
-              : { label: 'Monday item', value: order?.pulseId || '—' },
+            ...(practice
+              ? [{ label: 'Order', value: 'Practice run. Nothing was added to Monday.' }]
+              : mondayRowFields(order)),
           ]
         : waiting,
       notice,
@@ -979,7 +1003,12 @@ export function inboxNodeDetail(
       ],
       settings: [],
       input: waiting,
-      output: ran ? [{ label: 'Result', value: summary || '—' }] : waiting,
+      output: ran
+        ? [
+            { label: 'Files', value: fileNames(order) },
+            { label: 'Result', value: summary || '—' },
+          ]
+        : waiting,
       notice,
     }
   }
