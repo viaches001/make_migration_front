@@ -955,7 +955,10 @@ export function inboxNodeDetail(
   }
   if (index === 2) {
     return {
-      about: [...mondayBoard(boardName, boardId), { label: 'Order name', value: 'The email subject' }],
+      about: [
+        ...mondayBoard(boardName, boardId),
+        { label: 'Order name', value: 'The email subject at first, then the team’s way once the PO is read' },
+      ],
       settings: [],
       input: waiting,
       output: ran
@@ -983,8 +986,12 @@ export function inboxNodeDetail(
   return {
     about: [
       { label: 'Reads', value: 'PDFs and pictures, with AI' },
-      { label: 'Fills in', value: 'The PO Number column' },
-      { label: 'If it cannot', value: 'The order and its files are still saved' },
+      {
+        label: 'Fills in',
+        value:
+          'Status (Working on it), Client, Brand, State, Distributor Partner, Order Date, order type and PO number, with one subitem per order line linked to the Items board, in cases',
+      },
+      { label: 'If it cannot', value: 'The order and its files are still saved, and the note lists what to check' },
     ],
     settings: [],
     input: waiting,
@@ -993,9 +1000,14 @@ export function inboxNodeDetail(
           { label: 'PO number', value: order?.poNumber || 'Not found' },
           ...orderDetailFields(order),
           ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
+          ...(order?.mondayItemName ? [{ label: 'Monday item', value: order.mondayItemName }] : []),
+          ...mondayMatchFields(order),
+          ...(order?.mondayProblems?.length
+            ? [{ label: 'Not filled in', value: order.mondayProblems.map(friendlyText).join(' ') }]
+            : []),
         ]
       : waiting,
-    notice,
+    notice: notice ?? (ran && order?.mondayProblems?.length ? { tone: 'warning', text: order.mondayProblems.join(' ') } : null),
   }
 }
 
@@ -1051,7 +1063,7 @@ export function inboxTestNodeDetail(
         {
           label: 'Adds',
           value:
-            'A new row named [Test] the way the team enters an order: Client, Brand, State, Distributor Partner, Order Date, order type and PO number, the file, a note, and one subitem per order line linked to the Items board, in cases',
+            'A new row named [Test] the way the team enters an order, with Status set to Working on it: Client, Brand, State, Distributor Partner, Order Date, order type and PO number, the file, a note, and one subitem per order line linked to the Items board, in cases',
         },
         { label: 'When', value: 'Only when you press Add to Monday' },
       ],
