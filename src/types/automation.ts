@@ -104,6 +104,8 @@ export interface OrderSnapshot {
   /** Set when a Test run was added to Monday by hand. */
   mondayUrl?: string
   mondayItemName?: string
+  /** Live email run: the PO number was already on the board, so that order was used. */
+  existingOrder?: boolean | null
   mondayProblems?: string[]
   mondayMatch?: MondayMatch
   sender?: string

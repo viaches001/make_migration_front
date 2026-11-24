@@ -27,14 +27,15 @@ const inboxSteps: Step[] = [
     icon: MailSearch,
     kicker: 'Read',
     title: 'Read the email',
-    detail: 'Reads who sent it, the subject, and the attached files.',
-    stop: 'No attached files stops here',
+    detail: 'Reads who sent it, the subject, the message and the attached files.',
+    stop: 'No files and no PO number in the text stops here',
   },
   {
     icon: Square,
     kicker: 'Order',
     title: 'New order',
-    detail: 'Adds an order to the board with Status Working on it, named after the email subject until the PO is read.',
+    detail:
+      'Adds an order to the board with Status Working on it. If the PO number is already on the board, uses that order instead.',
   },
   {
     icon: FileDown,

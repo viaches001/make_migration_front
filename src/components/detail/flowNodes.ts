@@ -207,9 +207,12 @@ function mondayRowFields(order?: OrderSnapshot): FlowField[] {
   if (!order?.pulseId) return [{ label: 'Monday item', value: '—' }]
   const name = order.mondayItemName || order.name || order.pulseId
   return [
+    ...(order.existingOrder
+      ? [{ label: 'Order', value: 'Already on the board with the same PO number. No new row was added.' }]
+      : []),
     { label: 'Monday item', value: name },
     { label: 'Item ID', value: order.pulseId },
-    { label: 'Status', value: 'Working on it' },
+    ...(order.existingOrder ? [] : [{ label: 'Status', value: 'Working on it' }]),
     ...(order.mondayUrl
       ? [
           {
@@ -952,7 +955,7 @@ export function inboxNodeDetail(
     return {
       about: [
         { label: 'Mailbox', value: 'orders@helmsmanimports.com' },
-        { label: 'Checks', value: 'Every 10 minutes, for incoming email with attached files' },
+        { label: 'Checks', value: 'Every 10 minutes, for incoming email, with or without files' },
         { label: 'Skips', value: 'Sent mail, drafts, and email already saved' },
       ],
       settings: [],
@@ -981,7 +984,8 @@ export function inboxNodeDetail(
     return {
       about: [
         ...mondayBoard(boardName, boardId),
-        { label: 'Order name', value: 'The email subject at first, then the team’s way once the PO is read' },
+        { label: 'Order name', value: 'The team’s way: client, distributor, state and PO number' },
+        { label: 'Same PO', value: 'When the PO number is already on the board, the files and a note go to that order' },
       ],
       settings: [],
       input: waiting,
@@ -1014,7 +1018,7 @@ export function inboxNodeDetail(
   }
   return {
     about: [
-      { label: 'Reads', value: 'PDFs and pictures, with AI' },
+      { label: 'Reads', value: 'PDFs, pictures, Word (.docx, .doc, .rtf, .odt), Excel (.xlsx, .xls, .ods), CSV and text files, and the email’s own text, with AI' },
       {
         label: 'Fills in',
         value:
