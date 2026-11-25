@@ -65,6 +65,42 @@ export function ScenarioDetailPage() {
     setIncomplete(incompleteBody.executions.filter((row) => belongsToMode(row, mode)))
   }, [id, mode])
 
+  // New runs show up without a reload: runs started by Monday, a schedule or another person
+  // appear within seconds while the page is open, and as soon as the tab is looked at again.
+  useEffect(() => {
+    let stopped = false
+    async function refresh() {
+      if (document.visibilityState !== 'visible') return
+      try {
+        const [scenarioBody, historyBody, incompleteBody] = await Promise.all([
+          fetchScenario(id),
+          fetchHistory(id, mode),
+          fetchIncomplete(id, mode),
+        ])
+        if (stopped) return
+        const fresh = historyBody.executions.filter((row) => belongsToMode(row, mode))
+        const oldest = fresh[fresh.length - 1]?.startedAt ?? ''
+        setScenario(scenarioBody.scenario)
+        setHistory((rows) => [
+          ...fresh,
+          // Older pages already loaded stay below the newest page.
+          ...rows.filter((row) => !fresh.some((have) => have.id === row.id) && (row.startedAt ?? '') < oldest),
+        ])
+        setIncomplete(incompleteBody.executions.filter((row) => belongsToMode(row, mode)))
+      } catch {
+        // The next refresh tries again.
+      }
+    }
+    const timer = window.setInterval(() => void refresh(), 10000)
+    const onVisible = () => void refresh()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [id, mode])
+
   // A finished run from the other mode should not stay on the Steps tab after switching.
   useEffect(() => {
     if (watchId.current) return
@@ -469,6 +505,7 @@ export function ScenarioDetailPage() {
       <div className="flex min-h-0 flex-1 flex-col overflow-auto px-4 py-4 sm:px-6">
         {activeTab === 'history' && (
           <HistoryTable
+            scenarioId={id}
             rows={historyRows}
             onAnalyze={setActiveExecution}
             hasMore={hasMoreHistory && !pendingRun}

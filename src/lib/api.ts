@@ -58,6 +58,11 @@ export function fetchHistory(id: string, mode: RunMode, before?: string) {
   return request<{ executions: Execution[]; limit: number }>(`/api/scenarios/${id}/history?${params.toString()}`)
 }
 
+/** An email's inline signature picture (cid:NAME), served by the API so a sent email can be shown. */
+export function emailAssetUrl(name: string) {
+  return `${apiBase}/api/email-assets/${encodeURIComponent(name)}.png`
+}
+
 /** One run with everything the flow view needs. Lists only carry light rows. */
 export function fetchExecution(scenarioId: string, executionId: string) {
   return request<{ execution: Execution }>(`/api/scenarios/${scenarioId}/executions/${executionId}`)

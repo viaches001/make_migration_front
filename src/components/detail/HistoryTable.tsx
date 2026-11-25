@@ -1,9 +1,12 @@
-import { Sparkles } from 'lucide-react'
+import { Fragment, useState } from 'react'
+import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
+import { RunEmails } from '@/components/detail/RunEmails'
 import { runModeOf } from '@/lib/runMode'
 import type { Execution } from '@/types/automation'
 import { cn, formatDateTime, formatDuration, friendlyText } from '@/lib/format'
 
 interface Props {
+  scenarioId: string
   rows: Execution[]
   onAnalyze: (execution: Execution) => void
   hasMore?: boolean
@@ -36,7 +39,8 @@ function isPending(status: string) {
 }
 
 
-export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = false, onLoadMore }: Props) {
+export function HistoryTable({ scenarioId, rows, onAnalyze, hasMore = false, loadingMore = false, onLoadMore }: Props) {
+  const [openId, setOpenId] = useState<string | null>(null)
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-helm-200 bg-white px-6 py-14 text-center text-sm text-helm-400">
@@ -61,9 +65,26 @@ export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = f
         <tbody>
           {rows.map((row) => {
             const mode = runModeOf(row)
+            const openable = !isPending(row.status) && !row.id.startsWith('pending-')
+            const open = openable && openId === row.id
             return (
-            <tr key={row.id} className="border-t border-helm-50 hover:bg-helm-50/40">
+            <Fragment key={row.id}>
+            <tr
+              className={cn('border-t border-helm-50 hover:bg-helm-50/40', openable && 'cursor-pointer', open && 'bg-helm-50/40')}
+              onClick={openable ? () => setOpenId(open ? null : row.id) : undefined}
+              title={openable ? (open ? 'Hide this run' : 'Show this run and its emails') : undefined}
+            >
               <td className="px-4 py-3">
+                <span className="inline-flex items-center gap-1.5">
+                {openable ? (
+                  open ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-helm-400" aria-hidden="true" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-helm-300" aria-hidden="true" />
+                  )
+                ) : (
+                  <span className="w-3.5" />
+                )}
                 <span
                   className={cn(
                     'inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize',
@@ -72,6 +93,7 @@ export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = f
                   )}
                 >
                   {statusLabel(row.status)}
+                </span>
                 </span>
               </td>
               <td className="px-4 py-3">
@@ -102,7 +124,10 @@ export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = f
                   {(row.status === 'error' || row.status === 'warning') && (
                     <button
                       type="button"
-                      onClick={() => onAnalyze(row)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onAnalyze(row)
+                      }}
                       className="inline-flex items-center gap-1 rounded-lg bg-helm-50 px-2.5 py-1.5 text-xs font-semibold text-helm-600 hover:bg-helm-100"
                     >
                       <Sparkles className="h-3.5 w-3.5 text-gold" />
@@ -112,6 +137,14 @@ export function HistoryTable({ rows, onAnalyze, hasMore = false, loadingMore = f
                 </div>
               </td>
             </tr>
+            {open && (
+              <tr className="border-t border-helm-50 bg-canvas/40">
+                <td colSpan={6} className="px-4 py-4">
+                  <RunEmails scenarioId={scenarioId} executionId={row.id} />
+                </td>
+              </tr>
+            )}
+            </Fragment>
             )
           })}
         </tbody>
