@@ -110,6 +110,8 @@ export interface OrderSnapshot {
   mondayItemName?: string
   /** Live email run: the PO number was already on the board, so that order was used. */
   existingOrder?: boolean | null
+  /** Test run: the order already on the board with the PO number read, if any. */
+  onBoard?: { id: string; name: string } | null
   mondayProblems?: string[]
   mondayMatch?: MondayMatch
   sender?: string

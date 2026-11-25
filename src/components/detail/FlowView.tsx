@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, Check, Clock, Sparkles, FileDown, FilePlus2, FileText, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
+import { ArrowRight, Check, Clock, Sparkles, FileDown, FilePlus2, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { EmailRecipients, Execution } from '@/types/automation'
 import { RecipientsEditor } from '@/components/detail/RecipientsEditor'
 import { cn, friendlyText } from '@/lib/format'
@@ -20,8 +20,8 @@ const inboxSteps: Step[] = [
   {
     icon: Clock,
     kicker: 'Start',
-    title: 'Check the mailbox',
-    detail: 'Every 10 minutes, looks for new email sent to the orders mailbox.',
+    title: 'Listen to the mailbox',
+    detail: 'Each new email to the orders mailbox is handled as soon as it arrives.',
   },
   {
     icon: MailSearch,
@@ -53,19 +53,20 @@ const inboxSteps: Step[] = [
   },
 ]
 
-// Test mode reads a file already on the board. The mailbox is not checked and nothing is added.
+// Test mode listens for the next email to the orders mailbox and reads it. Nothing is added
+// to Monday until Add to Monday is pressed.
 const inboxTestSteps: Step[] = [
   {
-    icon: FileText,
-    kicker: 'Sample',
-    title: 'Pick a sample file',
-    detail: 'Choose a PO file from one of the 10 newest orders on the board.',
+    icon: MailSearch,
+    kicker: 'Listen',
+    title: 'Listen for an email',
+    detail: 'Waits for the next email to orders@helmsmanimports.com after you press Test run.',
   },
   {
     icon: Sparkles,
     kicker: 'PO',
     title: 'Read the PO',
-    detail: 'AI reads the file for the PO number and checks it against Monday. Nothing is added to the board.',
+    detail: 'AI reads the email’s files and text, and checks whether the PO is already on the board. Nothing is added yet.',
   },
   {
     icon: FilePlus2,
@@ -344,8 +345,6 @@ interface Props {
   onSaveRecipients?: (next: EmailRecipients) => Promise<void>
   /** The page's mode. The practice list only matters, and only shows, in practice. */
   mode?: 'test' | 'production'
-  /** New order from email in Test mode: the sample file chooser, shown on the first step. */
-  samplePicker?: ReactNode
   /** Shown under the steps, for example the sample file to compare with the result. */
   preview?: ReactNode
   /** New order from email in Test mode: the Add to Monday button, shown on the last step. */
@@ -364,7 +363,6 @@ export function FlowView({
   recipients,
   onSaveRecipients,
   mode = 'production',
-  samplePicker,
   preview,
   addToMonday,
 }: Props) {
@@ -540,7 +538,7 @@ export function FlowView({
       onClose={() => onSelect(null)}
       recipients={mode === 'test' ? recipients : undefined}
       onSaveRecipients={onSaveRecipients}
-      picker={inboxTest && selected === 0 ? samplePicker : inboxTest && selected === 2 ? addToMonday : undefined}
+      picker={inboxTest && selected === 2 ? addToMonday : undefined}
     />
     </div>
   )

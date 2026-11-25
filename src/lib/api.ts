@@ -71,6 +71,14 @@ export function checkMonday(scenarioId: string, executionId: string) {
   )
 }
 
+/** A listening New order from email test run asks whether a new email reached the orders mailbox. */
+export function checkInbox(scenarioId: string, executionId: string) {
+  return request<{ execution: Execution; error?: string }>(
+    `/api/scenarios/${scenarioId}/executions/${executionId}/check-inbox`,
+    { method: 'POST' },
+  )
+}
+
 export function fetchIncomplete(id: string, mode: RunMode) {
   return request<{ executions: Execution[] }>(`/api/scenarios/${id}/incomplete?mode=${mode}`)
 }

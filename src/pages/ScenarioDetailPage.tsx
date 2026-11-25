@@ -3,22 +3,20 @@ import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
 import {
   addTestToMonday,
+  checkInbox,
   checkMonday,
   continueExecution,
   fetchExecution,
   fetchHealth,
   fetchHistory,
   fetchIncomplete,
-  fetchSampleFiles,
   fetchScenario,
   ignoreExecution,
   retryExecution,
   runScenario,
-  sampleFileUrl,
   saveRecipients,
   setScenarioStatus,
   type RunMode,
-  type SampleFile,
 } from '@/lib/api'
 import type { Execution, Scenario, ScenarioStatus } from '@/types/automation'
 import { belongsToMode } from '@/lib/runMode'
@@ -29,8 +27,6 @@ import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inboxTestFlowOutcome
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
 import { AddToMonday } from '@/components/detail/AddToMonday'
-import { SamplePicker } from '@/components/detail/SamplePicker'
-import { SamplePreview } from '@/components/detail/SamplePreview'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
 import { cn, formatDateTime, friendlyText } from '@/lib/format'
 
@@ -56,12 +52,6 @@ export function ScenarioDetailPage() {
   const [flowExecution, setFlowExecution] = useState<Execution | null>(null)
   const [selectedNode, setSelectedNode] = useState<number | null>(null)
   const watchId = useRef<string | null>(null)
-  // New order from email, Test mode: the PO file on the board that the test reads.
-  const [samples, setSamples] = useState<SampleFile[] | null>(null)
-  const [samplesError, setSamplesError] = useState<string | null>(null)
-  const [sampleId, setSampleId] = useState<string | null>(null)
-  // Until a file is picked by hand, the picker follows the file of the run on screen.
-  const pickedSample = useRef(false)
   const [addingToMonday, setAddingToMonday] = useState(false)
   const [addToMondayError, setAddToMondayError] = useState<string | null>(null)
   const practiceAddress = scenario?.recipients?.practice.join(', ') || 'the practice address'
@@ -167,7 +157,8 @@ export function ScenarioDetailPage() {
         ? 'Staged'
         : null
   // Test runs of these wait for the next Monday event instead of picking an order.
-  const listenerScenario = inboundScenario || outgoingStatus !== null
+  // New order from email listens too in Test mode: for the next email to the orders mailbox.
+  const listenerScenario = inboundScenario || outgoingStatus !== null || inboxScenario
   const showCompare = (inventoryScenario || warehouseScenario) && mode === 'production'
   const activeTab = showCompare || tab !== 'compare' ? tab : 'history'
   const outcomeFor = inventoryScenario || warehouseScenario || popScenario
@@ -185,43 +176,6 @@ export function ScenarioDetailPage() {
             : flowOutcome
 
   const inboxTest = inboxScenario && mode === 'test'
-
-  // Test mode reads a sample file instead of the mailbox, so its first step opens with the file list.
-  useEffect(() => {
-    if (inboxScenario) setSelectedNode(mode === 'test' ? 0 : null)
-  }, [inboxScenario, mode])
-
-  useEffect(() => {
-    if (!inboxTest || samples !== null) return
-    let cancelled = false
-    setSamplesError(null)
-    fetchSampleFiles(id)
-      .then((body) => {
-        if (cancelled) return
-        setSamples(body.files)
-        setSampleId((current) => current ?? body.files[0]?.assetId ?? null)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        setSamples([])
-        setSamplesError(err instanceof Error ? err.message : 'Could not load the sample files')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [id, inboxTest, samples])
-
-  const shownSampleId = (flowExecution ?? latestFull)?.order?.sampleAssetId ?? null
-  useEffect(() => {
-    if (inboxTest && shownSampleId && !pickedSample.current) setSampleId(shownSampleId)
-  }, [inboxTest, shownSampleId])
-
-  function pickSample(assetId: string) {
-    pickedSample.current = true
-    setSampleId(assetId)
-  }
-
-  const previewFile = inboxTest ? samples?.find((file) => file.assetId === sampleId) ?? null : null
 
   async function handleAddToMonday(executionId: string) {
     setAddingToMonday(true)
@@ -278,19 +232,27 @@ export function ScenarioDetailPage() {
       setFlowExecution(execution)
       setFlowProgress({ current: 0 })
       setProgressNote(
-        outgoingStatus
-          ? `Listening for an order set to ${outgoingStatus} on Monday. The email goes to ${practiceAddress}, then listening stops.`
-          : `Listening for a Monday inbound complete event. The email goes to ${practiceAddress}, then listening stops.`,
+        inboxScenario
+          ? 'Listening for a new email to orders@helmsmanimports.com. Send one with the PO attached or written in it: the first email that arrives is read, then listening stops. Nothing is added to Monday until you press Add to Monday.'
+          : outgoingStatus
+            ? `Listening for an order set to ${outgoingStatus} on Monday. The email goes to ${practiceAddress}, then listening stops.`
+            : `Listening for a Monday inbound complete event. The email goes to ${practiceAddress}, then listening stops.`,
       )
       try {
         let current = execution
         while (current.status === 'listening') {
-          await new Promise((resolve) => window.setTimeout(resolve, 2000))
+          await new Promise((resolve) => window.setTimeout(resolve, inboxScenario ? 4000 : 2000))
           if (watchId.current !== execution.id) return
           // Outgoing order emails also ask Monday themselves, in case Monday's webhook does not reach the backend.
-          const found = (outgoingStatus ? await checkMonday(id, execution.id) : await fetchExecution(id, execution.id))
-            .execution
+          // New order from email asks the mailbox for an email that arrived after Test run was pressed.
+          const answer = inboxScenario
+            ? await checkInbox(id, execution.id)
+            : outgoingStatus
+              ? await checkMonday(id, execution.id)
+              : await fetchExecution(id, execution.id)
+          const found = answer.execution
           if (watchId.current !== execution.id) return
+          setError('error' in answer && answer.error ? `The mailbox could not be checked: ${answer.error}` : null)
           current = found
           setFlowExecution(found)
           if (found.status !== 'listening') setFlowProgress(outcomeFor(found))
@@ -356,7 +318,7 @@ export function ScenarioDetailPage() {
     setFlowExecution(null)
     setFlowProgress({ current: 0 })
     try {
-      const started = await runScenario(id, mode, inboxTest && sampleId ? { sampleAssetId: sampleId } : {})
+      const started = await runScenario(id, mode, {})
       if (listenerScenario && mode === 'test' && started.execution.status === 'listening') {
         setPendingRun(null)
         await watchInboundListener(started.execution)
@@ -570,18 +532,6 @@ export function ScenarioDetailPage() {
             boardId={scenario.boardId}
             selected={selectedNode}
             onSelect={setSelectedNode}
-            samplePicker={
-              inboxTest ? (
-                <SamplePicker
-                  files={samples ?? []}
-                  loading={samples === null && !samplesError}
-                  error={samplesError}
-                  selected={sampleId}
-                  onSelect={pickSample}
-                  disabled={running}
-                />
-              ) : undefined
-            }
             addToMonday={
               inboxTest ? (
                 <AddToMonday
@@ -591,11 +541,6 @@ export function ScenarioDetailPage() {
                   error={addToMondayError}
                   onAdd={(executionId) => void handleAddToMonday(executionId)}
                 />
-              ) : undefined
-            }
-            preview={
-              previewFile ? (
-                <SamplePreview url={sampleFileUrl(id, previewFile.assetId)} fileName={previewFile.fileName} />
               ) : undefined
             }
           />

@@ -1024,7 +1024,8 @@ export function inboxNodeDetail(
     return {
       about: [
         { label: 'Mailbox', value: 'orders@helmsmanimports.com' },
-        { label: 'Checks', value: 'Every 10 minutes, for incoming email, with or without files' },
+        { label: 'Listens', value: 'Gmail tells this automation the moment an email arrives, with or without files' },
+        { label: 'Backup', value: 'Also checks every 10 minutes, for anything a notification missed' },
         { label: 'Skips', value: 'Sent mail, drafts, and email already saved' },
       ],
       settings: [],
@@ -1113,11 +1114,14 @@ export function inboxNodeDetail(
   }
 }
 
-/** Test runs of New order from email: a sample file from the board, then the PO reading. */
+/** Test runs of New order from email: listen for the next email, read it, then Add to Monday by hand. */
 export function inboxTestFlowOutcome(execution: Pick<Execution, 'status' | 'summary' | 'order'>): FlowProgress {
   const summary = execution.summary ?? ''
-  if (execution.status === 'running' || execution.status === 'pending') return { current: 0 }
-  if (execution.status === 'error' || summary.startsWith('Stopped.')) return { current: 0, stopped: true }
+  if (execution.status === 'listening') return { current: 0 }
+  if (execution.status === 'running' || execution.status === 'pending') return { current: 1 }
+  if (execution.status === 'error') return { current: /mailbox|gmail|google/i.test(summary) ? 0 : 1, stopped: true }
+  // Older test runs read a sample file; a sample run that stopped never reached the file.
+  if (summary.startsWith('Stopped.')) return { current: execution.order?.source === 'sample' ? 0 : 1, stopped: true }
   if (execution.order?.pulseId) return { current: 3 }
   if (!execution.order?.poNumber) return { current: 1, stopped: true }
   return { current: 2, waiting: true }
@@ -1138,22 +1142,32 @@ export function inboxTestNodeDetail(
     ? { tone: execution?.status === 'error' ? 'error' : 'warning', text: friendlyText(execution?.summary ?? '') }
     : null
 
+  const sample = order?.source === 'sample'
   if (index === 0) {
+    const listening = execution?.status === 'listening'
     return {
       about: [
-        ...mondayBoard(boardName, boardId),
-        { label: 'Samples', value: 'A PDF or picture from each of the 10 newest orders' },
-        { label: 'Mailbox', value: 'Not checked in Test mode' },
+        { label: 'Mailbox', value: 'orders@helmsmanimports.com' },
+        { label: 'Waits for', value: 'The next email that arrives after you press Test run, with or without files' },
+        { label: 'Then', value: 'Reads that email and stops listening. The mailbox itself is never changed.' },
       ],
       settings: [],
       input: waiting,
-      output: ran
-        ? [
-            { label: 'Sample file', value: fileNames(order) },
-            { label: 'From the order', value: order?.name || '—' },
-            { label: 'PO on Monday', value: order?.mondayPoNumber || '—' },
-          ]
-        : waiting,
+      output: listening
+        ? [{ label: 'Value', value: 'Listening for a new email…' }]
+        : ran && sample
+          ? [
+              { label: 'Sample file', value: fileNames(order) },
+              { label: 'From the order', value: order?.name || '—' },
+            ]
+          : ran
+            ? [
+                { label: 'From', value: order?.sender || '—' },
+                { label: 'Subject', value: order?.name || '—' },
+                { label: 'Received', value: order?.receivedAt || '—' },
+                { label: 'Files', value: fileNames(order) },
+              ]
+            : waiting,
       notice,
     }
   }
@@ -1165,7 +1179,7 @@ export function inboxTestNodeDetail(
         {
           label: 'Adds',
           value:
-            'A new row named [Test] with Status Working on it, State, Distributor Partner, Order Date, order type, PO number, the file, a note, and one subitem per order line in cases. Client and Brand are always TEST instead of the real client and brand; each subitem links the Items board row it matched.',
+            'A new row named [Test] with Status Working on it, State, Distributor Partner, Order Date, order type, PO number, the email’s files, a note, and one subitem per order line in cases. Client and Brand are always TEST instead of the real client and brand; each subitem links the Items board row it matched.',
         },
         { label: 'When', value: 'Only when you press Add to Monday' },
       ],
@@ -1188,10 +1202,15 @@ export function inboxTestNodeDetail(
   }
   const monday = order?.mondayPoNumber
   const check = !order?.poNumber || !monday ? '—' : order.poMatches ? 'Yes' : `No. Monday shows ${monday}`
+  const onBoard = order?.onBoard?.name
+    ? `Yes: ${order.onBoard.name}. In Live, this email would go to that order instead of a new row.`
+    : order?.poNumber
+      ? 'No. In Live, this email would make a new row.'
+      : '—'
   return {
     about: [
-      { label: 'Reads', value: 'The sample file, with AI' },
-      { label: 'Test mode', value: 'Nothing is added to Monday' },
+      { label: 'Reads', value: 'PDFs, pictures, Word, Excel, CSV and text files, and the email’s own text, with AI' },
+      { label: 'Test mode', value: 'Nothing is added to Monday until you press Add to Monday' },
     ],
     settings: [],
     input: waiting,
@@ -1199,7 +1218,7 @@ export function inboxTestNodeDetail(
       ? [
           { label: 'File read', value: fileNames(order) },
           { label: 'PO number', value: order?.poNumber || 'Not found' },
-          { label: 'Same as Monday', value: check },
+          sample ? { label: 'Same as Monday', value: check } : { label: 'Already on the board', value: onBoard },
           ...orderDetailFields(order),
           ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
         ]
