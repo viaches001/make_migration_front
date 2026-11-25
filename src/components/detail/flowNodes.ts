@@ -1118,13 +1118,19 @@ export function inboxNodeDetail(
 export function inboxTestFlowOutcome(execution: Pick<Execution, 'status' | 'summary' | 'order'>): FlowProgress {
   const summary = execution.summary ?? ''
   if (execution.status === 'listening') return { current: 0 }
+  // Read, and now being added to Monday.
+  if (execution.status === 'running' && execution.order?.addPending) return { current: 2 }
   if (execution.status === 'running' || execution.status === 'pending') return { current: 1 }
-  if (execution.status === 'error') return { current: /mailbox|gmail|google/i.test(summary) ? 0 : 1, stopped: true }
+  if (execution.status === 'error') {
+    if (/Monday did not add the row/.test(summary)) return { current: 2, stopped: true }
+    return { current: /mailbox|gmail|google/i.test(summary) ? 0 : 1, stopped: true }
+  }
   // Older test runs read a sample file; a sample run that stopped never reached the file.
   if (summary.startsWith('Stopped.')) return { current: execution.order?.source === 'sample' ? 0 : 1, stopped: true }
   if (execution.order?.pulseId) return { current: 3 }
   if (!execution.order?.poNumber) return { current: 1, stopped: true }
-  return { current: 2, waiting: true }
+  // Older test runs waited for the Add to Monday button.
+  return { current: 2, stopped: true }
 }
 
 export function inboxTestNodeDetail(
@@ -1147,9 +1153,9 @@ export function inboxTestNodeDetail(
     const listening = execution?.status === 'listening'
     return {
       about: [
-        { label: 'Mailbox', value: 'orders@helmsmanimports.com' },
-        { label: 'Waits for', value: 'The next email that arrives after you press Test run, with or without files' },
-        { label: 'Then', value: 'Reads that email and stops listening. The mailbox itself is never changed.' },
+        { label: 'Mailboxes', value: 'orders@helmsmanimports.com and viacheslav@helmsmanimports.com' },
+        { label: 'Waits for', value: 'The next email that arrives in either mailbox after you press Test run, with or without files' },
+        { label: 'Then', value: 'Reads that email and adds it to Monday, then the run ends. The mailboxes are never changed.' },
       ],
       settings: [],
       input: waiting,
@@ -1162,6 +1168,7 @@ export function inboxTestNodeDetail(
             ]
           : ran
             ? [
+                ...(order?.mailbox ? [{ label: 'Mailbox', value: order.mailbox }] : []),
                 { label: 'From', value: order?.sender || '—' },
                 { label: 'Subject', value: order?.name || '—' },
                 { label: 'Received', value: order?.receivedAt || '—' },
@@ -1181,7 +1188,7 @@ export function inboxTestNodeDetail(
           value:
             'A new row named [Test] with Status Working on it, State, Distributor Partner, Order Date, order type, PO number, the email’s files, a note, and one subitem per order line in cases. Client and Brand are always TEST instead of the real client and brand; each subitem links the Items board row it matched.',
         },
-        { label: 'When', value: 'Only when you press Add to Monday' },
+        { label: 'When', value: 'By itself, right after the email is read. The run ends when the row is on the board.' },
       ],
       settings: [],
       input: waiting,
@@ -1194,7 +1201,7 @@ export function inboxTestNodeDetail(
               ? [{ label: 'Not finished', value: order.mondayProblems.map(friendlyText).join(' ') }]
               : []),
           ]
-        : [{ label: 'Value', value: 'Not added to Monday.' }],
+        : [{ label: 'Value', value: execution?.status === 'running' ? 'Adding it to Monday…' : 'Not added to Monday.' }],
       notice: order?.mondayProblems?.length
         ? { tone: 'warning', text: order.mondayProblems.join(' ') }
         : null,
@@ -1210,7 +1217,7 @@ export function inboxTestNodeDetail(
   return {
     about: [
       { label: 'Reads', value: 'PDFs, pictures, Word, Excel, CSV and text files, and the email’s own text, with AI' },
-      { label: 'Test mode', value: 'Nothing is added to Monday until you press Add to Monday' },
+      { label: 'Then', value: 'Adds it to Monday as a [Test] row, without a click' },
     ],
     settings: [],
     input: waiting,

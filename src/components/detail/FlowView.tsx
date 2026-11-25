@@ -53,26 +53,26 @@ const inboxSteps: Step[] = [
   },
 ]
 
-// Test mode listens for the next email to the orders mailbox and reads it. Nothing is added
-// to Monday until Add to Monday is pressed.
+// Test mode listens for the next email to the test mailboxes, reads it and adds it to Monday
+// as a [Test] row by itself; the run ends when the row is on the board.
 const inboxTestSteps: Step[] = [
   {
     icon: MailSearch,
     kicker: 'Listen',
     title: 'Listen for an email',
-    detail: 'Waits for the next email to orders@helmsmanimports.com after you press Test run.',
+    detail: 'Waits for the next email to orders@ or viacheslav@helmsmanimports.com after you press Test run.',
   },
   {
     icon: Sparkles,
     kicker: 'PO',
     title: 'Read the PO',
-    detail: 'AI reads the email’s files and text, and checks whether the PO is already on the board. Nothing is added yet.',
+    detail: 'AI reads the email’s files and text, and checks whether the PO is already on the board.',
   },
   {
     icon: FilePlus2,
     kicker: 'Monday',
     title: 'Add to Monday',
-    detail: 'Only when you press the button: adds the order as a [Test] row with the file, then links to it.',
+    detail: 'Right after the email is read: adds the order as a [Test] row with the TEST client and the email’s files. The run ends here.',
   },
 ]
 
@@ -347,8 +347,6 @@ interface Props {
   mode?: 'test' | 'production'
   /** Shown under the steps, for example the sample file to compare with the result. */
   preview?: ReactNode
-  /** New order from email in Test mode: the Add to Monday button, shown on the last step. */
-  addToMonday?: ReactNode
 }
 
 export function FlowView({
@@ -364,7 +362,6 @@ export function FlowView({
   onSaveRecipients,
   mode = 'production',
   preview,
-  addToMonday,
 }: Props) {
   const inboxTest = variant === 'inbox' && mode === 'test'
   const activeSteps =
@@ -538,7 +535,6 @@ export function FlowView({
       onClose={() => onSelect(null)}
       recipients={mode === 'test' ? recipients : undefined}
       onSaveRecipients={onSaveRecipients}
-      picker={inboxTest && selected === 2 ? addToMonday : undefined}
     />
     </div>
   )

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
 import {
-  addTestToMonday,
   checkInbox,
   checkMonday,
   continueExecution,
@@ -26,7 +25,6 @@ import { FlowView } from '@/components/detail/FlowView'
 import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inboxTestFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
-import { AddToMonday } from '@/components/detail/AddToMonday'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
 import { cn, formatDateTime, friendlyText } from '@/lib/format'
 
@@ -52,8 +50,6 @@ export function ScenarioDetailPage() {
   const [flowExecution, setFlowExecution] = useState<Execution | null>(null)
   const [selectedNode, setSelectedNode] = useState<number | null>(null)
   const watchId = useRef<string | null>(null)
-  const [addingToMonday, setAddingToMonday] = useState(false)
-  const [addToMondayError, setAddToMondayError] = useState<string | null>(null)
   const practiceAddress = scenario?.recipients?.practice.join(', ') || 'the practice address'
 
   // Runs and Needs attention show only the selected mode's runs.
@@ -175,24 +171,6 @@ export function ScenarioDetailPage() {
               : inboxFlowOutcome
             : flowOutcome
 
-  const inboxTest = inboxScenario && mode === 'test'
-
-  async function handleAddToMonday(executionId: string) {
-    setAddingToMonday(true)
-    setAddToMondayError(null)
-    try {
-      const body = await addTestToMonday(id, executionId)
-      setFlowExecution(body.execution)
-      setFlowProgress(outcomeFor(body.execution))
-      await load()
-      showToast(friendlyText(body.execution.order?.mondayItemName ? `Added ${body.execution.order.mondayItemName} to Monday.` : 'Added to Monday.'))
-    } catch (err: unknown) {
-      setAddToMondayError(err instanceof Error ? err.message : 'Could not add the row to Monday')
-    } finally {
-      setAddingToMonday(false)
-    }
-  }
-
   async function followRun(first: { execution: Execution }) {
     let body = first
     let guard = 0
@@ -233,14 +211,17 @@ export function ScenarioDetailPage() {
       setFlowProgress({ current: 0 })
       setProgressNote(
         inboxScenario
-          ? 'Listening for a new email to orders@helmsmanimports.com. Send one with the PO attached or written in it: the first email that arrives is read, then listening stops. Nothing is added to Monday until you press Add to Monday.'
+          ? 'Listening for a new email to orders@helmsmanimports.com or viacheslav@helmsmanimports.com. Send one with the PO attached or written in it: the first email that arrives is read and added to Monday as a [Test] row, then the run ends.'
           : outgoingStatus
             ? `Listening for an order set to ${outgoingStatus} on Monday. The email goes to ${practiceAddress}, then listening stops.`
             : `Listening for a Monday inbound complete event. The email goes to ${practiceAddress}, then listening stops.`,
       )
       try {
         let current = execution
-        while (current.status === 'listening') {
+        // New order from email keeps going after the email is read, until it is on Monday.
+        const going = (run: Execution) =>
+          run.status === 'listening' || (inboxScenario && run.status === 'running' && Boolean(run.order?.addPending))
+        while (going(current)) {
           await new Promise((resolve) => window.setTimeout(resolve, inboxScenario ? 4000 : 2000))
           if (watchId.current !== execution.id) return
           // Outgoing order emails also ask Monday themselves, in case Monday's webhook does not reach the backend.
@@ -256,6 +237,7 @@ export function ScenarioDetailPage() {
           current = found
           setFlowExecution(found)
           if (found.status !== 'listening') setFlowProgress(outcomeFor(found))
+          if (inboxScenario && going(found) && found.status === 'running') setProgressNote('Read the email. Adding it to Monday…')
         }
         if (watchId.current !== execution.id) return
         setProgressNote(null)
@@ -285,7 +267,9 @@ export function ScenarioDetailPage() {
 
   useEffect(() => {
     if (!listenerScenario || mode !== 'test') return
-    const open = history.find((row) => row.status === 'listening')
+    const open = history.find(
+      (row) => row.status === 'listening' || (inboxScenario && row.status === 'running' && Boolean(row.order?.addPending)),
+    )
     if (!open) return
     void watchInboundListener(open)
   }, [history, listenerScenario, mode, watchInboundListener])
@@ -311,7 +295,6 @@ export function ScenarioDetailPage() {
   async function handleRunSample() {
     setRunning(true)
     setError(null)
-    setAddToMondayError(null)
     setProgressNote(null)
     setTab('flow')
     beginPending()
@@ -532,17 +515,6 @@ export function ScenarioDetailPage() {
             boardId={scenario.boardId}
             selected={selectedNode}
             onSelect={setSelectedNode}
-            addToMonday={
-              inboxTest ? (
-                <AddToMonday
-                  execution={running ? null : shownExecution}
-                  boardName={scenario.boardName || 'the Outgoing Orders board'}
-                  busy={addingToMonday}
-                  error={addToMondayError}
-                  onAdd={(executionId) => void handleAddToMonday(executionId)}
-                />
-              ) : undefined
-            }
           />
         )}
 
