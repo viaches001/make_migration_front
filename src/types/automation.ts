@@ -112,6 +112,9 @@ export interface OrderSnapshot {
   existingOrder?: boolean | null
   /** Test run: the order already on the board with the PO number read, if any. */
   onBoard?: { id: string; name: string } | null
+  /** What the AI says the email is: purchase_order, order_change, invoice, bill_of_lading, shipping_notice or other. */
+  documentType?: string | null
+  documentReason?: string | null
   /** Test run: the mailbox the email came from. */
   mailbox?: string | null
   /** Test run: read, and being added to Monday. */

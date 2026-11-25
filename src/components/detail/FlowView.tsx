@@ -28,7 +28,7 @@ const inboxSteps: Step[] = [
     kicker: 'Read',
     title: 'Read the email',
     detail: 'Reads who sent it, the subject, the message and the attached files.',
-    stop: 'No files and no PO number in the text stops here',
+    stop: 'Not a purchase order, and not about an order on the board, stops here',
   },
   {
     icon: Square,
@@ -66,7 +66,7 @@ const inboxTestSteps: Step[] = [
     icon: Sparkles,
     kicker: 'PO',
     title: 'Read the PO',
-    detail: 'AI reads the email’s files and text, and checks whether the PO is already on the board.',
+    detail: 'AI reads the email’s files and text, says whether it is a purchase order, and checks whether the PO is already on the board.',
   },
   {
     icon: FilePlus2,

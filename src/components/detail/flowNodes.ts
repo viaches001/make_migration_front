@@ -133,11 +133,28 @@ function recipients(order?: OrderSnapshot) {
 }
 
 /** Everything read from the PO file, with the order lines as a table. */
+const DOCUMENT_NAMES: Record<string, string> = {
+  purchase_order: 'Purchase order',
+  order_change: 'Order change',
+  invoice: 'Invoice',
+  bill_of_lading: 'Bill of lading',
+  shipping_notice: 'Shipping notice',
+  other: 'Not an order',
+}
+
+/** What the AI says the email is: 'Invoice (invoice 4471 from Wesh Wines)'. */
+function documentText(order?: OrderSnapshot) {
+  const name = DOCUMENT_NAMES[order?.documentType ?? ''] ?? ''
+  if (!name) return 'Not judged (the email was not read)'
+  return order?.documentReason ? `${name} (${order.documentReason})` : name
+}
+
 function orderDetailFields(order?: OrderSnapshot): FlowField[] {
   const lines = order?.orderLines ?? []
   const quantity = (line: NonNullable<OrderSnapshot['orderLines']>[number]) =>
     [line.quantity, line.unit].filter(Boolean).join(' ')
   return [
+    { label: 'Document', value: documentText(order) },
     { label: 'PO date', value: order?.poDate || '—' },
     { label: 'Customer', value: order?.customer || '—' },
     { label: 'Ship to', value: order?.shipTo || '—' },
