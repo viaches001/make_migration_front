@@ -117,8 +117,9 @@ export interface OrderSnapshot {
   documentReason?: string | null
   /** Test run: the mailbox the email came from. */
   mailbox?: string | null
-  /** Test run: read, and being added to Monday. */
-  addPending?: boolean | null
+  /** New order from email: the run's step for its Submitted Queue row (read, fill, done). */
+  stage?: string | null
+  senderName?: string | null
   mondayProblems?: string[]
   mondayMatch?: MondayMatch
   sender?: string

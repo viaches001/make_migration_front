@@ -22,7 +22,7 @@ import { belongsToMode } from '@/lib/runMode'
 import { CompareView } from '@/components/detail/CompareView'
 import { DetailTabs, type DetailTab } from '@/components/detail/DetailTabs'
 import { FlowView } from '@/components/detail/FlowView'
-import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inboxTestFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
+import { flowOutcome, inboundFlowOutcome, inboxFlowOutcome, inventoryFlowOutcome, pickupFlowOutcome, poReceivedFlowOutcome } from '@/components/detail/flowNodes'
 import { HistoryTable } from '@/components/detail/HistoryTable'
 import { IncompleteTable } from '@/components/detail/IncompleteTable'
 import { AiErrorPanel } from '@/components/panels/AiErrorPanel'
@@ -202,9 +202,7 @@ export function ScenarioDetailPage() {
         : inboundScenario
           ? inboundFlowOutcome
           : inboxScenario
-            ? mode === 'test'
-              ? inboxTestFlowOutcome
-              : inboxFlowOutcome
+            ? inboxFlowOutcome
             : flowOutcome
 
   async function followRun(first: { execution: Execution }) {
@@ -247,7 +245,7 @@ export function ScenarioDetailPage() {
       setFlowProgress({ current: 0 })
       setProgressNote(
         inboxScenario
-          ? 'Listening for a new email to orders@helmsmanimports.com or viacheslav@helmsmanimports.com. Send one with the PO attached or written in it: the first email that arrives is read and added to Monday as a [Test] row, then the run ends.'
+          ? 'Listening for a new row in Submitted Queue. Send an email to orders@helmsmanimports.com: when Monday adds it as a row, its email is read and, if it is a purchase order, that row is filled in.'
           : outgoingStatus
             ? `Listening for an order set to ${outgoingStatus} on Monday. The email goes to ${practiceAddress}, then listening stops.`
             : `Listening for a Monday inbound complete event. The email goes to ${practiceAddress}, then listening stops.`,
@@ -255,8 +253,7 @@ export function ScenarioDetailPage() {
       try {
         let current = execution
         // New order from email keeps going after the email is read, until it is on Monday.
-        const going = (run: Execution) =>
-          run.status === 'listening' || (inboxScenario && run.status === 'running' && Boolean(run.order?.addPending))
+        const going = (run: Execution) => run.status === 'listening' || (inboxScenario && run.status === 'running')
         while (going(current)) {
           await new Promise((resolve) => window.setTimeout(resolve, inboxScenario ? 4000 : 2000))
           if (watchId.current !== execution.id) return
@@ -273,7 +270,7 @@ export function ScenarioDetailPage() {
           current = found
           setFlowExecution(found)
           if (found.status !== 'listening') setFlowProgress(outcomeFor(found))
-          if (inboxScenario && going(found) && found.status === 'running') setProgressNote('Read the email. Adding it to Monday…')
+          if (inboxScenario && found.status === 'running') setProgressNote(friendlyText(found.summary ?? 'Working…'))
         }
         if (watchId.current !== execution.id) return
         setProgressNote(null)
@@ -304,7 +301,7 @@ export function ScenarioDetailPage() {
   useEffect(() => {
     if (!listenerScenario || mode !== 'test') return
     const open = history.find(
-      (row) => row.status === 'listening' || (inboxScenario && row.status === 'running' && Boolean(row.order?.addPending)),
+      (row) => row.status === 'listening' || (inboxScenario && row.status === 'running'),
     )
     if (!open) return
     void watchInboundListener(open)

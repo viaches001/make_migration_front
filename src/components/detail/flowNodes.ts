@@ -47,14 +47,18 @@ export function inboundFlowOutcome(execution: Pick<Execution, 'status' | 'summar
   return { current: 6 }
 }
 
-export function inboxFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
+/**
+ * New order from email, Live and Test alike: a new row in Submitted Queue (made by Monday's
+ * Gmail automation), its email read, and the row filled in only when it is a purchase order.
+ */
+export function inboxFlowOutcome(execution: Pick<Execution, 'status' | 'summary' | 'order'>): FlowProgress {
   const summary = execution.summary ?? ''
+  const stage = execution.order?.stage
+  if (execution.status === 'listening') return { current: 0 }
+  if (execution.status === 'running' || execution.status === 'pending') return { current: stage === 'fill' ? 2 : 1 }
+  if (execution.status === 'error') return { current: stage === 'fill' ? 2 : 1, stopped: true }
   if (summary.startsWith('Stopped.')) return { current: 1, stopped: true }
-  if (execution.status === 'incomplete') return { current: 3, stopped: true }
-  if (execution.status === 'error') {
-    return { current: /mailbox|gmail|google/i.test(summary) ? 0 : 2, stopped: true }
-  }
-  return { current: 5 }
+  return { current: 3 }
 }
 
 export function pickupFlowOutcome(execution: Pick<Execution, 'status' | 'summary'>): FlowProgress {
@@ -230,12 +234,9 @@ function mondayRowFields(order?: OrderSnapshot): FlowField[] {
   if (!order?.pulseId) return [{ label: 'Monday item', value: '—' }]
   const name = order.mondayItemName || order.name || order.pulseId
   return [
-    ...(order.existingOrder
-      ? [{ label: 'Order', value: 'Already on the board with the same PO number. No new row was added.' }]
-      : []),
     { label: 'Monday item', value: name },
     { label: 'Item ID', value: order.pulseId },
-    ...(order.existingOrder ? [] : [{ label: 'Status', value: 'Working on it' }]),
+    { label: 'Status', value: 'Working on it' },
     ...(order.mondayUrl
       ? [
           {
@@ -1027,227 +1028,87 @@ export function inboxNodeDetail(
   execution: Execution | null,
   boardName: string,
   boardId: string,
+  test = false,
 ): FlowNodeDetail {
   const order = execution?.order
   const outcome = execution ? inboxFlowOutcome(execution) : null
-  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
-  const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
-  const summary = friendlyText(execution?.summary ?? '')
-  const practice = execution?.mode === 'test'
-  const waiting: FlowField[] = [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
-  const tone = execution?.status === 'error' ? 'error' : 'warning'
-  const notice: FlowNotice | null = stoppedHere ? { tone, text: summary } : null
-
-  if (index === 0) {
-    return {
-      about: [
-        { label: 'Mailbox', value: 'orders@helmsmanimports.com' },
-        { label: 'Listens', value: 'Gmail tells this automation the moment an email arrives, with or without files' },
-        { label: 'Backup', value: 'Once a day, renews the listening and picks up anything a notification missed' },
-        { label: 'Skips', value: 'Sent mail, drafts, and email already saved' },
-      ],
-      settings: [],
-      input: waiting,
-      output: ran ? [{ label: 'Email', value: order?.name || 'No new email' }] : waiting,
-      notice,
-    }
-  }
-  if (index === 1) {
-    return {
-      about: [{ label: 'Leaves out', value: 'Logos and pictures shown inside the email' }],
-      settings: [],
-      input: waiting,
-      output: ran
-        ? [
-            { label: 'From', value: order?.sender || '—' },
-            { label: 'Subject', value: order?.name || '—' },
-            { label: 'Received', value: order?.receivedAt || '—' },
-            { label: 'Files', value: fileNames(order) },
-          ]
-        : waiting,
-      notice,
-    }
-  }
-  if (index === 2) {
-    return {
-      about: [
-        ...mondayBoard(boardName, boardId),
-        { label: 'Order name', value: 'The team’s way: client, distributor, state and PO number' },
-        { label: 'Same PO', value: 'When the PO number is already on the board, the files and a note go to that order' },
-      ],
-      settings: [],
-      input: waiting,
-      output: ran
-        ? [
-            ...(practice
-              ? [{ label: 'Order', value: 'Practice run. Nothing was added to Monday.' }]
-              : mondayRowFields(order)),
-          ]
-        : waiting,
-      notice,
-    }
-  }
-  if (index === 3) {
-    return {
-      about: [
-        { label: 'Saved to', value: 'The Files column of the new order' },
-        { label: 'Also', value: 'Adds a note with the sender and the message. The mailbox itself is never changed.' },
-      ],
-      settings: [],
-      input: waiting,
-      output: ran
-        ? [
-            { label: 'Files', value: fileNames(order) },
-            { label: 'Result', value: summary || '—' },
-          ]
-        : waiting,
-      notice,
-    }
-  }
-  return {
-    about: [
-      { label: 'Reads', value: 'PDFs, pictures, Word (.docx, .doc, .rtf, .odt), Excel (.xlsx, .xls, .ods), CSV and text files, and the email’s own text, with AI' },
-      {
-        label: 'Fills in',
-        value:
-          'Status (Working on it), Client, Brand, State, Distributor Partner, Order Date, order type and PO number, with one subitem per order line linked to the Items board, in cases',
-      },
-      { label: 'If it cannot', value: 'The order and its files are still saved, and the note lists what to check' },
-    ],
-    settings: [],
-    input: waiting,
-    output: ran
-      ? [
-          { label: 'PO number', value: order?.poNumber || 'Not found' },
-          ...orderDetailFields(order),
-          ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
-          ...(order?.mondayItemName ? [{ label: 'Monday item', value: order.mondayItemName }] : []),
-          ...mondayMatchFields(order),
-          ...(order?.mondayProblems?.length
-            ? [{ label: 'Not filled in', value: order.mondayProblems.map(friendlyText).join(' ') }]
-            : []),
-        ]
-      : waiting,
-    notice: notice ?? (ran && order?.mondayProblems?.length ? { tone: 'warning', text: order.mondayProblems.join(' ') } : null),
-  }
-}
-
-/** Test runs of New order from email: listen for the next email, read it, then Add to Monday by hand. */
-export function inboxTestFlowOutcome(execution: Pick<Execution, 'status' | 'summary' | 'order'>): FlowProgress {
-  const summary = execution.summary ?? ''
-  if (execution.status === 'listening') return { current: 0 }
-  // Read, and now being added to Monday.
-  if (execution.status === 'running' && execution.order?.addPending) return { current: 2 }
-  if (execution.status === 'running' || execution.status === 'pending') return { current: 1 }
-  if (execution.status === 'error') {
-    if (/Monday did not add the row/.test(summary)) return { current: 2, stopped: true }
-    return { current: /mailbox|gmail|google/i.test(summary) ? 0 : 1, stopped: true }
-  }
-  // Older test runs read a sample file; a sample run that stopped never reached the file.
-  if (summary.startsWith('Stopped.')) return { current: execution.order?.source === 'sample' ? 0 : 1, stopped: true }
-  if (execution.order?.pulseId) return { current: 3 }
-  if (!execution.order?.poNumber) return { current: 1, stopped: true }
-  // Older test runs waited for the Add to Monday button.
-  return { current: 2, stopped: true }
-}
-
-export function inboxTestNodeDetail(
-  index: number,
-  execution: Execution | null,
-  boardName: string,
-  boardId: string,
-): FlowNodeDetail {
-  const order = execution?.order
-  const outcome = execution ? inboxTestFlowOutcome(execution) : null
-  const ran = Boolean(outcome && (!outcome.stopped || index <= outcome.current))
+  const ran = Boolean(outcome && (index < outcome.current || (outcome.stopped && index === outcome.current)))
   const stoppedHere = Boolean(outcome?.stopped && outcome.current === index)
   const waiting: FlowField[] = [{ label: 'Value', value: execution ? NOT_RUN : EMPTY }]
   const notice: FlowNotice | null = stoppedHere
     ? { tone: execution?.status === 'error' ? 'error' : 'warning', text: friendlyText(execution?.summary ?? '') }
     : null
 
-  const sample = order?.source === 'sample'
   if (index === 0) {
     const listening = execution?.status === 'listening'
+    const sender = order?.senderName ? `${order.senderName} <${order.sender ?? ''}>` : order?.sender
     return {
       about: [
-        { label: 'Mailboxes', value: 'orders@helmsmanimports.com and viacheslav@helmsmanimports.com' },
-        { label: 'Waits for', value: 'The next email that arrives in either mailbox after you press Test run, with or without files' },
-        { label: 'Then', value: 'Reads that email and adds it to Monday, then the run ends. The mailboxes are never changed.' },
+        ...mondayBoard(boardName, boardId),
+        { label: 'Group', value: 'Submitted Queue' },
+        { label: 'Rows from', value: 'Monday’s Gmail automation, one per email to orders@helmsmanimports.com' },
+        test
+          ? { label: 'Waits for', value: 'The next new row after you press Test run' }
+          : { label: 'Starts', value: 'As soon as Monday adds the email to the row' },
       ],
       settings: [],
       input: waiting,
       output: listening
-        ? [{ label: 'Value', value: 'Listening for a new email…' }]
-        : ran && sample
+        ? [{ label: 'Value', value: 'Listening for a new row in Submitted Queue…' }]
+        : order?.pulseId
           ? [
-              { label: 'Sample file', value: fileNames(order) },
-              { label: 'From the order', value: order?.name || '—' },
+              { label: 'Row', value: order.name || order.pulseId },
+              { label: 'From', value: sender || '—' },
+              { label: 'Received', value: order.receivedAt || '—' },
+              { label: 'Files', value: fileNames(order) },
             ]
-          : ran
-            ? [
-                ...(order?.mailbox ? [{ label: 'Mailbox', value: order.mailbox }] : []),
-                { label: 'From', value: order?.sender || '—' },
-                { label: 'Subject', value: order?.name || '—' },
-                { label: 'Received', value: order?.receivedAt || '—' },
-                { label: 'Files', value: fileNames(order) },
-              ]
-            : waiting,
-      notice,
+          : waiting,
+      notice: index === 0 ? null : notice,
     }
   }
-  if (index === 2) {
-    const added = Boolean(order?.pulseId)
+  if (index === 1) {
     return {
       about: [
-        ...mondayBoard(boardName, boardId),
-        {
-          label: 'Adds',
-          value:
-            'A new row named [Test] with Status Working on it, State, Distributor Partner, Order Date, order type, PO number, the email’s files, a note, and one subitem per order line in cases. Client and Brand are always TEST instead of the real client and brand; each subitem links the Items board row it matched.',
-        },
-        { label: 'When', value: 'By itself, right after the email is read. The run ends when the row is on the board.' },
+        { label: 'Reads', value: 'The email on the row and its files (PDFs, pictures, Word, Excel, CSV, text), with AI' },
+        { label: 'Decides', value: 'Whether it is a purchase order. Only purchase orders go on to be filled in.' },
+        { label: 'Otherwise', value: 'The row is left exactly as Monday made it' },
       ],
       settings: [],
       input: waiting,
-      output: added
+      output: ran || outcome?.current === 2
         ? [
-            { label: 'Monday item', value: order?.mondayItemName || order?.pulseId || '—' },
-            { label: 'Item ID', value: order?.pulseId || '—' },
-            ...mondayMatchFields(order),
-            ...(order?.mondayProblems?.length
-              ? [{ label: 'Not finished', value: order.mondayProblems.map(friendlyText).join(' ') }]
-              : []),
+            { label: 'PO number', value: order?.poNumber || 'Not found' },
+            ...orderDetailFields(order),
+            ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
           ]
-        : [{ label: 'Value', value: execution?.status === 'running' ? 'Adding it to Monday…' : 'Not added to Monday.' }],
-      notice: order?.mondayProblems?.length
-        ? { tone: 'warning', text: order.mondayProblems.join(' ') }
-        : null,
+        : waiting,
+      notice,
     }
   }
-  const monday = order?.mondayPoNumber
-  const check = !order?.poNumber || !monday ? '—' : order.poMatches ? 'Yes' : `No. Monday shows ${monday}`
-  const onBoard = order?.onBoard?.name
-    ? `Yes: ${order.onBoard.name}. In Live, this email would go to that order instead of a new row.`
-    : order?.poNumber
-      ? 'No. In Live, this email would make a new row.'
-      : '—'
+  const filled = outcome?.current === 3
   return {
     about: [
-      { label: 'Reads', value: 'PDFs, pictures, Word, Excel, CSV and text files, and the email’s own text, with AI' },
-      { label: 'Then', value: 'Adds it to Monday as a [Test] row, without a click' },
+      ...mondayBoard(boardName, boardId),
+      {
+        label: 'Fills in',
+        value:
+          'That same row: PO File, the name the team uses, Status Working on it, Client, Brand, State, Distributor Partner, Order Date, order type and PO number, one subitem per order line linked to the Items board in cases, and a note',
+      },
+      { label: 'Leaves', value: 'Rows the team already filled in, and anything that is not a purchase order' },
     ],
     settings: [],
     input: waiting,
-    output: ran
+    output: filled
       ? [
-          { label: 'File read', value: fileNames(order) },
-          { label: 'PO number', value: order?.poNumber || 'Not found' },
-          sample ? { label: 'Same as Monday', value: check } : { label: 'Already on the board', value: onBoard },
-          ...orderDetailFields(order),
-          ...(order?.readNote ? [{ label: 'Note', value: friendlyText(order.readNote) }] : []),
+          ...mondayRowFields(order),
+          ...mondayMatchFields(order),
+          ...(order?.mondayProblems?.length
+            ? [{ label: 'Not filled in', value: order.mondayProblems.map(friendlyText).join(' ') }]
+            : []),
         ]
-      : waiting,
-    notice,
+      : execution?.status === 'running' && outcome?.current === 2
+        ? [{ label: 'Value', value: 'Filling in the row…' }]
+        : waiting,
+    notice: notice ?? (filled && order?.mondayProblems?.length ? { tone: 'warning', text: order.mondayProblems.join(' ') } : null),
   }
 }

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { ArrowRight, Check, Clock, Sparkles, FileDown, FilePlus2, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
+import { ArrowRight, Check, Sparkles, FileDown, FilePlus2, Filter, Mail, MailSearch, Square, Webhook, X } from 'lucide-react'
 import type { EmailRecipients, Execution } from '@/types/automation'
 import { RecipientsEditor } from '@/components/detail/RecipientsEditor'
 import { cn, friendlyText } from '@/lib/format'
-import { inboundNodeDetail, inboxNodeDetail, inboxTestNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, popNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
+import { inboundNodeDetail, inboxNodeDetail, inventoryNodeDetail, nodeDetail, pickupNodeDetail, poReceivedNodeDetail, popNodeDetail, warehouseNodeDetail, type FlowProgress } from '@/components/detail/flowNodes'
 
 export type { FlowProgress }
 
@@ -16,64 +16,40 @@ interface Step {
   stop?: string
 }
 
+// New order from email: Monday's Gmail automation adds each email to orders@ as a row in
+// Submitted Queue; this reads the email and fills that row only when it is a purchase order.
 const inboxSteps: Step[] = [
   {
-    icon: Clock,
+    icon: Webhook,
     kicker: 'Start',
-    title: 'Listen to the mailbox',
-    detail: 'Each new email to the orders mailbox is handled as soon as it arrives.',
+    title: 'New row in Submitted Queue',
+    detail: 'Monday’s Gmail automation adds each email to orders@ as a row; Monday tells this automation.',
   },
   {
-    icon: MailSearch,
+    icon: Sparkles,
     kicker: 'Read',
-    title: 'Read the email',
-    detail: 'Reads who sent it, the subject, the message and the attached files.',
-    stop: 'Not a purchase order, and not about an order on the board, stops here',
-  },
-  {
-    icon: Square,
-    kicker: 'Order',
-    title: 'New order',
-    detail:
-      'Adds an order to the board with Status Working on it. If the PO number is already on the board, uses that order instead.',
-  },
-  {
-    icon: FileDown,
-    kicker: 'Files',
-    title: 'Save the files',
-    detail: 'Puts every attached file on the order. The email is left untouched.',
-    stop: 'A file that cannot be saved waits for a retry',
-  },
-  {
-    icon: Sparkles,
-    kicker: 'PO',
-    title: 'Read the PO and fill in the order',
-    detail:
-      'AI reads the PO, then fills in Client, Brand, State, Distributor, Order Date and PO number, and adds the order lines as subitems. If it cannot, the order is still saved.',
-  },
-]
-
-// Test mode listens for the next email to the test mailboxes, reads it and adds it to Monday
-// as a [Test] row by itself; the run ends when the row is on the board.
-const inboxTestSteps: Step[] = [
-  {
-    icon: MailSearch,
-    kicker: 'Listen',
-    title: 'Listen for an email',
-    detail: 'Waits for the next email to orders@ or viacheslav@helmsmanimports.com after you press Test run.',
-  },
-  {
-    icon: Sparkles,
-    kicker: 'PO',
-    title: 'Read the PO',
-    detail: 'AI reads the email’s files and text, says whether it is a purchase order, and checks whether the PO is already on the board.',
+    title: 'Is it a purchase order?',
+    detail: 'AI reads the email on the row and its files.',
+    stop: 'Not a purchase order: the row is left as it is',
   },
   {
     icon: FilePlus2,
     kicker: 'Monday',
-    title: 'Add to Monday',
-    detail: 'Right after the email is read: adds the order as a [Test] row with the TEST client and the email’s files. The run ends here.',
+    title: 'Fill in the row',
+    detail: 'PO File, columns, Status Working on it, subitems and a note, on that same row.',
   },
+]
+
+// Test mode does the same with the next new row after Test run is pressed.
+const inboxTestSteps: Step[] = [
+  {
+    icon: MailSearch,
+    kicker: 'Listen',
+    title: 'Wait for a new row',
+    detail: 'Waits for the next row Monday adds to Submitted Queue after you press Test run.',
+  },
+  inboxSteps[1],
+  inboxSteps[2],
 ]
 
 const inboundSteps: Step[] = [
@@ -400,7 +376,7 @@ export function FlowView({
                   : variant === 'inbound'
                     ? inboundNodeDetail(selected, execution ?? null, mailMode, boardName, boardId)
                   : inboxTest
-                    ? inboxTestNodeDetail(selected, execution ?? null, boardName, boardId)
+                    ? inboxNodeDetail(selected, execution ?? null, boardName, boardId, true)
                   : variant === 'inbox'
                     ? inboxNodeDetail(selected, execution ?? null, boardName, boardId)
                   : nodeDetail(selected, execution ?? null, mailMode, boardName, boardId),
