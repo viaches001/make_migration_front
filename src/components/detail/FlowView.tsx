@@ -141,7 +141,7 @@ const pickupSteps: Step[] = [
     icon: MailSearch,
     kicker: 'Who',
     title: 'Outgoing or direct',
-    detail: 'Outgoing uses the purchase order email. Direct uses both client emails.',
+    detail: 'Outgoing uses the purchase order email, or the Distributor Email when no distributor partner is picked. Direct uses both client emails.',
   },
   {
     icon: FileDown,

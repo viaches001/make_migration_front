@@ -822,7 +822,8 @@ export function pickupNodeDetail(
   const summary = execution?.summary ?? ''
   const outgoing = (order?.orderType || '') === 'Outgoing'
   const direct = (order?.orderType || '') === 'Direct'
-  const purchase = firstEmail(order?.purchaseEmail)
+  // No Distributor Partner (so no Purchase Order Email): the order's Distributor Email is used.
+  const purchase = firstEmail(order?.purchaseEmail) || firstEmail(order?.distributorEmail)
   const sales = firstEmail(order?.salesEmail)
   const client = firstEmail(order?.orderEmail)
   const recipients = outgoing ? (purchase ? [purchase] : []) : direct ? [client, sales].filter(Boolean) : []
