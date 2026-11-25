@@ -173,7 +173,7 @@ function mondayMatchFields(order?: OrderSnapshot): FlowField[] {
       ? { label: 'Client', value: `${match.client || 'TEST client not found'}${forReal(match.readClient)}` }
       : { label: 'Client', value: match.client || 'Not found' },
     match.test
-      ? { label: 'Brand', value: `Not linked in Test mode${forReal(match.readBrand)}` }
+      ? { label: 'Brand', value: `${match.brand || 'No TEST brand on the Brands board'}${forReal(match.readBrand)}` }
       : { label: 'Brand', value: match.brand || 'Not found' },
     { label: 'Distributor Partner', value: match.distributor || 'Not found' },
     { label: 'State', value: match.state || 'Not found' },
@@ -183,7 +183,7 @@ function mondayMatchFields(order?: OrderSnapshot): FlowField[] {
       label: `Subitems (${lines.length})`,
       value: '',
       table: {
-        headers: ['Product', match.test ? 'Matched item (not linked)' : 'Item on Monday', 'Cases', 'Case price'],
+        headers: ['Product', 'Item on Monday', 'Cases', 'Case price'],
         widths: ['32%', '40%', '12%', '16%'],
         rows: lines.map((line) => [
           line.product || '—',
@@ -1165,7 +1165,7 @@ export function inboxTestNodeDetail(
         {
           label: 'Adds',
           value:
-            'A new row named [Test] with Status Working on it, State, Distributor Partner, Order Date, order type, PO number, the file, a note, and one subitem per order line in cases. Client is always TEST, and no brand or Items board row is linked, so no real client’s data changes; each subitem is named after the item it matched.',
+            'A new row named [Test] with Status Working on it, State, Distributor Partner, Order Date, order type, PO number, the file, a note, and one subitem per order line in cases. Client and Brand are always TEST instead of the real client and brand; each subitem links the Items board row it matched.',
         },
         { label: 'When', value: 'Only when you press Add to Monday' },
       ],

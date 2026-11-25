@@ -51,9 +51,8 @@ export function AddToMonday({
       <p className="text-[11px] font-semibold text-helm-400">Add this result to Monday</p>
       <p className="text-sm leading-relaxed text-helm-500">
         Adds a new row to {boardName} the way the team enters an order: State, Distributor Partner, Order Date and
-        PO number filled in, the file attached, and one subitem per order line in cases. To keep real clients&apos; data
-        untouched, Client is always TEST and no brand or Items board row is linked; each subitem is named after the
-        item it matched. Its name starts with [Test], so it is easy to find and delete.
+        PO number filled in, the file attached, and one subitem per order line in cases, linked to the Items board
+        row it matched. Client and Brand are always TEST instead of the real client and brand. Its name starts with [Test], so it is easy to find and delete.
       </p>
       <button
         type="button"
