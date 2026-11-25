@@ -1042,7 +1042,7 @@ export function inboxNodeDetail(
       about: [
         { label: 'Mailbox', value: 'orders@helmsmanimports.com' },
         { label: 'Listens', value: 'Gmail tells this automation the moment an email arrives, with or without files' },
-        { label: 'Backup', value: 'Also checks every 10 minutes, for anything a notification missed' },
+        { label: 'Backup', value: 'Once a day, renews the listening and picks up anything a notification missed' },
         { label: 'Skips', value: 'Sent mail, drafts, and email already saved' },
       ],
       settings: [],
