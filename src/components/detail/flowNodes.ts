@@ -116,7 +116,8 @@ function firstEmail(raw?: string) {
 
 function receivedRecipients(order?: OrderSnapshot) {
   if ((order?.orderType || '') === 'Outgoing') {
-    const email = firstEmail(order?.purchaseEmail)
+    // No Distributor Partner (so no Purchase Order Email): the order's Distributor Email is used.
+    const email = firstEmail(order?.purchaseEmail) || firstEmail(order?.distributorEmail)
     return email ? [email] : []
   }
   if ((order?.orderType || '') === 'Direct') return recipients(order)

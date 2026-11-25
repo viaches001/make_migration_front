@@ -181,7 +181,7 @@ const receivedSteps: Step[] = [
     icon: MailSearch,
     kicker: 'Who',
     title: 'Outgoing or direct',
-    detail: 'Outgoing uses the purchase order email. Direct uses the client emails.',
+    detail: 'Outgoing uses the purchase order email, or the Distributor Email when no distributor partner is picked. Direct uses the client emails.',
   },
   {
     icon: FileDown,
