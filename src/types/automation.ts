@@ -62,6 +62,10 @@ export interface MondayMatch {
   state?: string
   orderDate?: string
   orderType?: string
+  /** Test rows: filed under the TEST client, with what the order was really for. */
+  test?: boolean
+  readClient?: string
+  readBrand?: string
   lines?: Array<{ product?: string; item?: string; code?: string; cases?: string; casePrice?: string; readAs?: string }>
 }
 
