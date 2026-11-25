@@ -59,6 +59,7 @@ export interface MondayMatch {
   client?: string
   brand?: string
   distributor?: string
+  carrier?: string
   state?: string
   orderDate?: string
   orderType?: string
@@ -119,6 +120,9 @@ export interface OrderSnapshot {
   mailbox?: string | null
   /** New order from email: the run's step for its Submitted Queue row (read, fill, done). */
   stage?: string | null
+  /** A revised PO: the order already on the board that it updated. */
+  original?: { id: string; name: string } | null
+  carrier?: string | null
   senderName?: string | null
   mondayProblems?: string[]
   mondayMatch?: MondayMatch

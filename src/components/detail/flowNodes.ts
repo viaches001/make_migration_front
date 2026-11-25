@@ -55,8 +55,9 @@ export function inboxFlowOutcome(execution: Pick<Execution, 'status' | 'summary'
   const summary = execution.summary ?? ''
   const stage = execution.order?.stage
   if (execution.status === 'listening') return { current: 0 }
-  if (execution.status === 'running' || execution.status === 'pending') return { current: stage === 'fill' ? 2 : 1 }
-  if (execution.status === 'error') return { current: stage === 'fill' ? 2 : 1, stopped: true }
+  const writing = stage === 'fill' || stage === 'revise'
+  if (execution.status === 'running' || execution.status === 'pending') return { current: writing ? 2 : 1 }
+  if (execution.status === 'error') return { current: writing ? 2 : 1, stopped: true }
   if (summary.startsWith('Stopped.')) return { current: 1, stopped: true }
   return { current: 3 }
 }
@@ -140,6 +141,7 @@ function recipients(order?: OrderSnapshot) {
 /** Everything read from the PO file, with the order lines as a table. */
 const DOCUMENT_NAMES: Record<string, string> = {
   purchase_order: 'Purchase order',
+  revised_purchase_order: 'Revised purchase order',
   order_change: 'Order change',
   invoice: 'Invoice',
   bill_of_lading: 'Bill of lading',
@@ -198,6 +200,7 @@ function mondayMatchFields(order?: OrderSnapshot): FlowField[] {
       ? { label: 'Brand', value: `${match.brand || 'No TEST brand on the Brands board'}${forReal(match.readBrand)}` }
       : { label: 'Brand', value: match.brand || 'Not found' },
     { label: 'Distributor Partner', value: match.distributor || 'Not found' },
+    { label: 'Carrier', value: match.carrier || (order?.carrier ? `${order.carrier} (not on the Carriers board)` : 'Not on the PO') },
     { label: 'State', value: match.state || 'Not found' },
     { label: 'Order Date', value: prettyDate(match.orderDate) || '—' },
     { label: 'Order', value: match.orderType || '—' },
@@ -1094,12 +1097,17 @@ export function inboxNodeDetail(
         value:
           'That same row: PO File, the name the team uses, Status Working on it, Client, Brand, State, Distributor Partner, Order Date, order type and PO number, one subitem per order line linked to the Items board in cases, and a note',
       },
+      { label: 'Revised PO', value: 'When its PO number is already on the board, that order gets the new PO file and subitems instead, and this row is left with a note' },
+      { label: 'Also', value: 'Ticks PO detected, and links the Carrier when the PO names one' },
       { label: 'Leaves', value: 'Rows the team already filled in, and anything that is not a purchase order' },
     ],
     settings: [],
     input: waiting,
     output: filled
       ? [
+          ...(order?.original
+            ? [{ label: 'Revised PO for', value: `${order.original.name}: its PO File and subitems were replaced; this row was left as it is` }]
+            : []),
           ...mondayRowFields(order),
           ...mondayMatchFields(order),
           ...(order?.mondayProblems?.length
@@ -1107,7 +1115,7 @@ export function inboxNodeDetail(
             : []),
         ]
       : execution?.status === 'running' && outcome?.current === 2
-        ? [{ label: 'Value', value: 'Filling in the row…' }]
+        ? [{ label: 'Value', value: order?.stage === 'revise' ? 'Updating the original order…' : 'Filling in the row…' }]
         : waiting,
     notice: notice ?? (filled && order?.mondayProblems?.length ? { tone: 'warning', text: order.mondayProblems.join(' ') } : null),
   }
